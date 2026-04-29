@@ -8,7 +8,7 @@ function todayStr() { return new Date().toISOString().split('T')[0]; }
 function formatDate(d) { return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 export async function renderWorkout(container) {
-  if (!editingWorkoutId) {
+  if (!editingWorkoutId && currentSession.exercises.length === 0) {
     currentSession = { date: todayStr(), exercises: [] };
   }
 

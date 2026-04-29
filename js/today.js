@@ -201,8 +201,10 @@ function renderCheckItem(key, label, icon, checked) {
 
 // ── Main render ────────────────────────────────────────────────────────────
 export async function renderToday(container) {
-  openExercises.clear();
-  await loadTodayLog();
+  // Only reload from DB if we have no in-memory data (preserves unsaved sets on tab switch)
+  if (Object.keys(sessionLog).length === 0) {
+    await loadTodayLog();
+  }
 
   const [prog, week, checklistItems, routineSteps, allSupplements] = await Promise.all([
     getCurrentProgramme(),
@@ -334,6 +336,7 @@ function setupTodayEvents(container) {
   // Programme toggle
   container.querySelectorAll('[data-prog]').forEach(btn => {
     btn.addEventListener('click', async () => {
+      openExercises.clear(); sessionLog = {};
       await setCurrentProgramme(btn.dataset.prog);
       renderToday(container);
     });
@@ -342,6 +345,7 @@ function setupTodayEvents(container) {
   // Week selector
   container.querySelectorAll('[data-week]').forEach(btn => {
     btn.addEventListener('click', async () => {
+      openExercises.clear(); sessionLog = {};
       await setCurrentWeek(+btn.dataset.week);
       renderToday(container);
     });
@@ -429,6 +433,8 @@ function setupTodayEvents(container) {
       todayWorkoutId = await dbAdd('workouts', workoutData);
       showToast('Session saved!');
     }
+    // Sync in-memory state with what was saved
+    await loadTodayLog();
     const btn = container.querySelector('#save-today-log');
     if (btn) btn.textContent = '✓ Update Session';
     const headerRow = container.querySelector('.card-header-row');

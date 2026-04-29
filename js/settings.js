@@ -405,18 +405,37 @@ function setupEvents(container, data) {
 }
 
 // Profile
+function readProfileForm(container) {
+  return {
+    name:          container.querySelector('#p-name')?.value.trim() || '',
+    age:           parseInt(container.querySelector('#p-age')?.value)      || null,
+    sex:           container.querySelector('#p-sex')?.value                || '',
+    height:        parseFloat(container.querySelector('#p-height')?.value)  || null,
+    startWeight:   parseFloat(container.querySelector('#p-weight')?.value)  || null,
+    proteinTarget: parseInt(container.querySelector('#p-protein')?.value)   || 150,
+    goal:          container.querySelector('#p-goal')?.value               || 'health',
+  };
+}
+
 function setupProfileEvents(container) {
+  let saveTimer;
+  const autoSave = () => {
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(async () => {
+      await dbPut('settings', { key: 'user_profile', value: readProfileForm(container) });
+      const btn = container.querySelector('#save-profile');
+      if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = 'Save Profile'; }, 1500); }
+    }, 600);
+  };
+
+  ['#p-name','#p-age','#p-sex','#p-height','#p-weight','#p-protein','#p-goal'].forEach(sel => {
+    container.querySelector(sel)?.addEventListener('input', autoSave);
+    container.querySelector(sel)?.addEventListener('change', autoSave);
+  });
+
   container.querySelector('#save-profile')?.addEventListener('click', async () => {
-    const value = {
-      name:          container.querySelector('#p-name')?.value.trim() || '',
-      age:           parseInt(container.querySelector('#p-age')?.value)     || null,
-      sex:           container.querySelector('#p-sex')?.value               || '',
-      height:        parseFloat(container.querySelector('#p-height')?.value) || null,
-      startWeight:   parseFloat(container.querySelector('#p-weight')?.value) || null,
-      proteinTarget: parseInt(container.querySelector('#p-protein')?.value)  || 150,
-      goal:          container.querySelector('#p-goal')?.value              || 'health',
-    };
-    await dbPut('settings', { key: 'user_profile', value });
+    clearTimeout(saveTimer);
+    await dbPut('settings', { key: 'user_profile', value: readProfileForm(container) });
     showToast('Profile saved!');
   });
 }

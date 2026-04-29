@@ -129,9 +129,10 @@ select.input-field { appearance: none; cursor: pointer; }
   display: inline-block; font-size: .7rem; font-weight: 600; padding: .15rem .45rem;
   border-radius: 20px; white-space: nowrap;
 }
-.badge.info { background: #6c63ff22; color: #a09bff; border: 1px solid #6c63ff44; }
+.badge.info    { background: #6c63ff22; color: #a09bff; border: 1px solid #6c63ff44; }
 .badge.warning { background: #ffd70022; color: #ffd700; border: 1px solid #ffd70044; }
-.badge.danger { background: #ff6b6b22; color: #ff6b6b; border: 1px solid #ff6b6b44; }
+.badge.danger  { background: #ff6b6b22; color: #ff6b6b; border: 1px solid #ff6b6b44; }
+.badge.success { background: #22c55e22; color: #4ade80; border: 1px solid #22c55e44; }
 
 /* ── Programme switcher ── */
 .programme-switcher .label { font-size: .78rem; color: var(--muted); margin-bottom: .5rem; display: block; }
@@ -347,6 +348,8 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
   padding: .1rem .3rem; border-radius: 4px;
 }
 .ex-log-name { font-size: .88rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plan-target { font-size: .72rem; color: var(--muted); background: var(--bg3); border: 1px solid var(--border); padding: .1rem .3rem; border-radius: 4px; flex-shrink: 0; font-variant-numeric: tabular-nums; }
+.plan-target-bar { font-size: .78rem; color: var(--muted); padding: .2rem .5rem .1rem; border-top: 1px solid var(--border); margin: 0 -.75rem; padding-left: .75rem; }
 .ex-log-status { display: flex; align-items: center; gap: .35rem; flex-shrink: 0; }
 
 .toggle-ex-log {
@@ -420,6 +423,12 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 .meta-label { font-size: .72rem; color: var(--muted); }
 
 /* Programme editor */
+.prog-upload-meta {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .55rem .7rem; display: flex; flex-direction: column; gap: .15rem;
+}
+.prog-upload-title { font-size: .88rem; font-weight: 600; }
+
 .prog-day-block {
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: .65rem .75rem; margin-bottom: .6rem;

@@ -31,3 +31,13 @@ export async function getUserProfile() {
   const s = await dbGet('settings', 'user_profile');
   return s?.value ?? PROFILE;
 }
+
+export async function getProgrammeTargets(prog) {
+  const s = await dbGet('settings', `programme_${prog.toLowerCase()}_targets`);
+  return s?.value ?? {};
+}
+
+export async function getProgrammeMeta(prog) {
+  const s = await dbGet('settings', `programme_${prog.toLowerCase()}_meta`);
+  return s?.value ?? null;
+}

@@ -1,6 +1,6 @@
 import { dbGet, dbPut, dbAdd, dbGetAll, dbDelete, dbClear } from './db.js';
 import { MORNING_ROUTINE, SUPPLEMENTS, PROGRAMME_A, PROGRAMME_B, TARGETS, DEFAULT_CHECKLIST_ITEMS, ALL_EXERCISES, SCAN_HISTORY } from './profile.js';
-import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule, getTargets, getUserProfile } from './config.js';
+import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule, getTargets, getUserProfile, getProgrammeMeta } from './config.js';
 
 const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const TIMING_OPTIONS = ['Morning fasted','Morning','Morning with food','Morning with fat','Morning or pre-training','Pre-training','Post-training','With meals','With meals with fat','With lunch','With lunch with fat','Evening','Evening with food','Before bed'];
@@ -41,10 +41,11 @@ let openSections = new Set(['profile']);
 
 // ── Public API ─────────────────────────────────────────────────────────────
 export async function renderSettings(container) {
-  const [checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork] = await Promise.all([
+  const [checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork, metaA, metaB] = await Promise.all([
     getChecklistItems(), getMorningRoutine(), getSupplements(),
     getProgrammeSchedule('A'), getProgrammeSchedule('B'),
     getTargets(), getUserProfile(), dbGetAll('bloodwork'),
+    getProgrammeMeta('A'), getProgrammeMeta('B'),
   ]);
 
   container.innerHTML = `
@@ -56,6 +57,7 @@ export async function renderSettings(container) {
     ${section('checklist',   '☑️ Daily Checklist',      renderChecklist(checklistItems))}
     ${section('routine',     '🌅 Morning Routine',      renderRoutine(routineSteps))}
     ${section('supplements', '💊 Supplement Stack',     renderSupplements(supplements))}
+    ${section('progUpload',  '📋 Programme Upload',     renderProgrammeUpload(metaA, metaB))}
     ${section('progA',       '💪 Programme A Schedule', renderProgramme('A', schedA))}
     ${section('progB',       '💪 Programme B Schedule', renderProgramme('B', schedB))}
     ${section('targets',     '🎯 Body Targets',         renderTargets(targets))}
@@ -321,6 +323,35 @@ function renderBloodwork(bloodwork) {
       </div>` : ''}`;
 }
 
+function renderProgrammeUpload(metaA, metaB) {
+  function metaCard(prog, meta) {
+    if (!meta) return `<p class="muted" style="font-size:.8rem">Programme ${prog}: no upload</p>`;
+    return `
+      <div class="prog-upload-meta">
+        <div class="prog-upload-title">${meta.name}</div>
+        ${meta.description ? `<div class="muted" style="font-size:.78rem">${meta.description}</div>` : ''}
+        <div class="muted" style="font-size:.75rem">Uploaded ${fmtDate(meta.uploadedAt.split('T')[0])}</div>
+        <button class="btn-danger btn-sm clear-upload-prog" data-prog="${prog}" style="margin-top:.35rem">Clear</button>
+      </div>`;
+  }
+  return `
+    <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">Upload a JSON file to auto-fill exercises for each day and enable accuracy tracking on the Today tab.</p>
+    <div class="add-item-row" style="margin-bottom:.5rem">
+      <select id="upload-prog-slot" class="input-field" style="flex:0 0 auto;width:9rem">
+        <option value="A">Programme A</option>
+        <option value="B">Programme B</option>
+      </select>
+      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme JSON</button>
+    </div>
+    <input type="file" id="upload-prog-input" accept=".json" style="display:none">
+    <div id="upload-prog-status" style="font-size:.85rem;margin-bottom:.5rem"></div>
+    <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem">
+      ${metaCard('A', metaA)}
+      ${metaCard('B', metaB)}
+    </div>
+    <button class="btn-secondary" id="download-prog-template" style="width:100%">⬇ Download JSON Template</button>`;
+}
+
 function renderData() {
   return `
     <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">Export your data as a JSON backup, or import a backup from another device.</p>
@@ -364,6 +395,7 @@ function setupEvents(container, data) {
   setupChecklistEvents(container, data.checklistItems);
   setupRoutineEvents(container, data.routineSteps);
   setupSuppEvents(container, data.supplements);
+  setupProgrammeUploadEvents(container);
   setupProgEvents(container, 'A', data.schedA);
   setupProgEvents(container, 'B', data.schedB);
   setupTargetEvents(container, data.targets);
@@ -639,6 +671,115 @@ function setupBloodworkEvents(container, bloodwork) {
       await dbDelete('bloodwork', +btn.dataset.id);
       renderSettings(container);
     }
+  });
+}
+
+// Programme Upload
+const PROG_DAY_MAP = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };
+
+async function importProgramme(file, prog) {
+  const text = await file.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error('Invalid JSON file'); }
+  if (!data.days || typeof data.days !== 'object') throw new Error('Missing "days" field — see template for format');
+
+  const schedule = {};
+  const targets = {};
+
+  for (const [dayName, dayData] of Object.entries(data.days)) {
+    const dayNum = PROG_DAY_MAP[dayName.toLowerCase()];
+    if (dayNum === undefined) throw new Error(`Unknown day "${dayName}" — use Monday, Tuesday, etc.`);
+    const exNames = [];
+    for (const ex of (dayData.exercises || [])) {
+      if (typeof ex === 'string') {
+        exNames.push(ex);
+      } else if (ex?.name) {
+        exNames.push(ex.name);
+        if (ex.sets || ex.reps) targets[ex.name] = { sets: ex.sets || null, reps: String(ex.reps || '') };
+      }
+    }
+    schedule[dayNum] = { label: dayData.label || '', exercises: exNames };
+  }
+
+  const key = prog.toLowerCase();
+  await dbPut('settings', { key: `programme_${key}_schedule`, value: schedule });
+  await dbPut('settings', { key: `programme_${key}_targets`, value: targets });
+  await dbPut('settings', { key: `programme_${key}_meta`, value: {
+    name: data.name || 'Uploaded Programme',
+    description: data.description || '',
+    uploadedAt: new Date().toISOString(),
+  }});
+}
+
+function setupProgrammeUploadEvents(container) {
+  container.querySelector('#upload-prog-btn')?.addEventListener('click', () => {
+    container.querySelector('#upload-prog-input')?.click();
+  });
+
+  container.querySelector('#upload-prog-input')?.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const status = container.querySelector('#upload-prog-status');
+    const prog = container.querySelector('#upload-prog-slot')?.value || 'A';
+    status.textContent = 'Reading…'; status.style.color = 'var(--muted)';
+    try {
+      await importProgramme(file, prog);
+      status.textContent = `✓ Programme loaded into Programme ${prog} — refresh to see changes in Today`;
+      status.style.color = 'var(--success)';
+      setTimeout(() => renderSettings(container), 1000);
+    } catch (err) {
+      status.textContent = '✕ ' + err.message; status.style.color = 'var(--danger)';
+    }
+    e.target.value = '';
+  });
+
+  container.querySelectorAll('.clear-upload-prog').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const prog = btn.dataset.prog;
+      if (!confirm(`Clear the uploaded programme for Programme ${prog}? The schedule itself won't be changed.`)) return;
+      const key = prog.toLowerCase();
+      await Promise.all([
+        dbDelete('settings', `programme_${key}_targets`),
+        dbDelete('settings', `programme_${key}_meta`),
+      ]);
+      showToast(`Programme ${prog} upload cleared`);
+      renderSettings(container);
+    });
+  });
+
+  container.querySelector('#download-prog-template')?.addEventListener('click', () => {
+    const template = {
+      name: "My Programme",
+      description: "Optional — e.g. 4-day upper/lower split",
+      days: {
+        Monday:    { label: "Push",  exercises: [
+          { name: "Bench Press",       sets: 4, reps: "6-8"   },
+          { name: "Overhead Press",    sets: 3, reps: "8-10"  },
+          { name: "Tricep Pushdown",   sets: 3, reps: "12-15" },
+        ]},
+        Tuesday:   { label: "Pull",  exercises: [
+          { name: "Pull-up",           sets: 4, reps: "6-8"   },
+          { name: "Barbell Row",       sets: 3, reps: "8-10"  },
+          { name: "Bicep Curl",        sets: 3, reps: "12-15" },
+        ]},
+        Wednesday: { label: "Rest",  exercises: [] },
+        Thursday:  { label: "Legs",  exercises: [
+          { name: "Back Squat",        sets: 4, reps: "6-8"   },
+          { name: "Romanian Deadlift", sets: 3, reps: "10-12" },
+          { name: "Leg Press",         sets: 3, reps: "12-15" },
+        ]},
+        Friday:    { label: "Upper", exercises: [
+          { name: "Incline Bench Press", sets: 3, reps: "8-10"  },
+          { name: "Cable Row",           sets: 3, reps: "10-12" },
+        ]},
+        Saturday:  { label: "Rest",  exercises: [] },
+        Sunday:    { label: "Rest",  exercises: [] },
+      },
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = 'mystats-programme-template.json'; a.click();
+    showToast('Template downloaded!');
   });
 }
 

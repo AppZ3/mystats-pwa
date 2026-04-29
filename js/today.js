@@ -1,13 +1,14 @@
 import { PROGRAMME_A, PROGRAMME_B, PRE_TRAINING, MOBILITY_SESSIONS } from './profile.js';
 import { dbGet, dbPut, dbGetByIndex, dbAdd } from './db.js';
-import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule } from './config.js';
+import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule, getProgrammeTargets } from './config.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
 let sessionLog = {};
 let openExercises = new Set();
 let todayWorkoutId = null;
 let sessionExercises = [];
-let selectedDay = new Date().getDay(); // default to actual day, user can override
+let selectedDay = new Date().getDay();
+let progTargets = {};
 
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const WEEK_LABELS = ['','Foundation','Intensification','Volume','Deload'];
@@ -102,22 +103,58 @@ function renderExerciseLogRow(ex, i) {
         ? [log.run?.distance && log.run.distance + 'km', log.run?.duration, log.run?.avgBPM && log.run.avgBPM + 'bpm'].filter(Boolean).join(' · ')
         : log.sets.filter(s => s.reps || s.weight).length + ' sets')
     : '';
+
+  const target = !isRun ? progTargets[ex] : null;
+  const targetStr = target ? `${target.sets || '?'}×${target.reps || '?'}` : '';
+  const accuracy = hasLog && target ? getAccuracy(log, target) : null;
+
   return `
     <div class="ex-log-row" data-idx="${i}">
       <div class="ex-log-header">
         <div class="ex-log-info">
           <span class="plan-tag">Plan</span>
           <span class="ex-log-name">${ex}</span>
+          ${targetStr ? `<span class="plan-target">${targetStr}</span>` : ''}
         </div>
         <div class="ex-log-status">
           ${hasLog ? `<span class="badge info">✓ ${summary}</span>` : ''}
+          ${accuracy === 'hit'    ? '<span class="badge success">On plan</span>'    : ''}
+          ${accuracy === 'close'  ? '<span class="badge warning">Close</span>'       : ''}
+          ${accuracy === 'missed' ? '<span class="badge danger">Below plan</span>'   : ''}
           <button class="toggle-ex-log" data-idx="${i}">${isOpen ? 'Close ▲' : 'Log ▼'}</button>
         </div>
       </div>
+      ${targetStr && isOpen ? `<div class="plan-target-bar">Target: ${targetStr}</div>` : ''}
       <div class="ex-log-body ${isOpen ? '' : 'hidden'}" id="ex-log-body-${i}">
         ${isRun ? renderRunLog(log?.run || {}) : renderSetsLog(log?.sets || [], log?.notes || '')}
       </div>
     </div>`;
+}
+
+function getAccuracy(log, target) {
+  const setsLogged = (log.sets || []).filter(s => s.reps || s.weight).length;
+  const setsTarget = target.sets || 0;
+  if (!setsTarget) return null;
+
+  let minReps = null;
+  const repsStr = target.reps || '';
+  if (repsStr.includes('-')) {
+    minReps = parseInt(repsStr.split('-')[0]);
+  } else if (/^\d+$/.test(repsStr)) {
+    minReps = parseInt(repsStr);
+  }
+
+  const loggedWithReps = (log.sets || []).filter(s => s.reps);
+  const avgReps = loggedWithReps.length
+    ? loggedWithReps.reduce((sum, s) => sum + s.reps, 0) / loggedWithReps.length
+    : null;
+
+  const setsOk = setsLogged >= setsTarget;
+  const repsOk = !minReps || avgReps == null || avgReps >= minReps * 0.9;
+
+  if (setsOk && repsOk) return 'hit';
+  if (setsLogged >= setsTarget - 1 && (!minReps || avgReps == null || avgReps >= minReps * 0.75)) return 'close';
+  return 'missed';
 }
 
 function renderSetsLog(sets, notes) {
@@ -175,6 +212,7 @@ export async function renderToday(container) {
     getSupplements(),
   ]);
 
+  progTargets = await getProgrammeTargets(prog);
   const session = await getSession(prog, selectedDay);
   sessionExercises = session.exercises || [];
   const checklist = await getTodayChecklist();

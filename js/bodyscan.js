@@ -1,7 +1,117 @@
 import { SCAN_HISTORY, TARGETS } from './profile.js';
 import { dbAdd, dbPut, dbGetAll, dbDelete } from './db.js';
 
-let editingScan = null; // null = new, object = editing
+let editingScan = null;
+
+// ── File → text extraction ─────────────────────────────────────────────────
+
+async function loadPdfJsForScan() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = () => reject(new Error('Could not load PDF parser — check internet connection'));
+    document.head.appendChild(s);
+  });
+}
+
+async function loadTesseract() {
+  if (window.Tesseract) return window.Tesseract;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js';
+    s.onload = () => resolve(window.Tesseract);
+    s.onerror = () => reject(new Error('Could not load image reader — check internet connection'));
+    document.head.appendChild(s);
+  });
+}
+
+async function extractScanText(file, setStatus) {
+  const name = file.name.toLowerCase();
+  const isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
+
+  if (isPdf) {
+    setStatus('Reading PDF…');
+    const pdfjsLib = await loadPdfJsForScan();
+    const data = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data }).promise;
+    const pages = [];
+    for (let p = 1; p <= pdf.numPages; p++) {
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const byY = {};
+      for (const item of content.items) {
+        const y = Math.round(item.transform[5] / 4) * 4;
+        (byY[y] = byY[y] || []).push(item);
+      }
+      const lines = Object.keys(byY).map(Number).sort((a, b) => b - a)
+        .map(y => byY[y].sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join(' ').trim())
+        .filter(Boolean);
+      pages.push(lines.join('\n'));
+    }
+    return pages.join('\n');
+  }
+
+  // Image — OCR
+  setStatus('Running OCR… this can take 15–30 seconds on first use');
+  const Tesseract = await loadTesseract();
+  const { data: { text } } = await Tesseract.recognize(file, 'eng');
+  return text;
+}
+
+// ── InBody text parser ─────────────────────────────────────────────────────
+
+function parseInBodyText(rawText) {
+  const t = rawText.replace(/[\n\r]+/g, ' ').replace(/\s{2,}/g, ' ');
+
+  const find = (...pats) => {
+    for (const p of pats) {
+      const m = t.match(p);
+      if (m) { const v = parseFloat(m[1].replace(/,/g, '')); return isNaN(v) ? null : v; }
+    }
+    return null;
+  };
+
+  return {
+    weight:      find(/weight\s*[:\-]?\s*([\d,]+\.?\d*)\s*kg/i),
+    smm:         find(/skeletal\s*muscle\s*mass\s*[:\-]?\s*([\d,]+\.?\d*)/i, /\bsmm\b\s*[:\-]?\s*([\d,]+\.?\d*)/i),
+    pbf:         find(/body\s*fat\s*[%\s][:\-]?\s*([\d,]+\.?\d*)/i, /\bpbf\b\s*[:\-]?\s*([\d,]+\.?\d*)/i, /percent\s*body\s*fat\s*[:\-]?\s*([\d,]+\.?\d*)/i),
+    bodyFatMass: find(/body\s*fat\s*mass\s*[:\-]?\s*([\d,]+\.?\d*)\s*kg/i),
+    bmi:         find(/\bbmi\b\s*[:\-]?\s*([\d,]+\.?\d*)/i),
+    vfl:         find(/visceral\s*fat\s*level\s*[:\-]?\s*([\d,]+\.?\d*)/i, /\bvfl\b\s*[:\-]?\s*([\d,]+)/i),
+    vfa:         find(/visceral\s*fat\s*area\s*[:\-]?\s*([\d,]+\.?\d*)\s*cm/i),
+    phaseAngle:  find(/phase\s*angle\s*[:\-]?\s*([\d,]+\.?\d*)/i),
+    bmr:         find(/\bbmr\b\s*[:\-]?\s*([\d,]+\.?\d*)/i, /basal\s*metabolic\s*rate\s*[:\-]?\s*([\d,]+)/i),
+    inbodyScore: find(/inbody\s*score\s*[:\-]?\s*(\d+)/i),
+    tbw:         find(/total\s*body\s*water\s*[:\-]?\s*([\d,]+\.?\d*)/i, /\btbw\b\s*[:\-]?\s*([\d,]+\.?\d*)/i),
+    protein:     find(/\bprotein\b\s*[:\-]?\s*([\d,]+\.?\d*)\s*kg/i),
+    minerals:    find(/\bminerals?\b\s*[:\-]?\s*([\d,]+\.?\d*)\s*kg/i),
+    ecwRatio:    find(/ecw\s*[\/\.]\s*tbw\s*[:\-]?\s*([\d.]+)/i, /ecw\s*ratio\s*[:\-]?\s*([\d.]+)/i),
+    ffmi:        find(/\bffmi\b\s*[:\-]?\s*([\d.]+)/i),
+    whr:         find(/waist.hip\s*(?:ratio)?\s*[:\-]?\s*([\d.]+)/i, /\bwhr\b\s*[:\-]?\s*([\d.]+)/i),
+    bmc:         find(/bone\s*mineral\s*(?:content|density)\s*[:\-]?\s*([\d.]+)\s*kg/i, /\bbmc\b\s*[:\-]?\s*([\d.]+)/i),
+    rightArm:    find(/right\s*arm\s*[:\-]?\s*([\d.]+)\s*kg/i),
+    leftArm:     find(/left\s*arm\s*[:\-]?\s*([\d.]+)\s*kg/i),
+    trunk:       find(/\btrunk\b\s*[:\-]?\s*([\d.]+)\s*kg/i),
+    rightLeg:    find(/right\s*leg\s*[:\-]?\s*([\d.]+)\s*kg/i),
+    leftLeg:     find(/left\s*leg\s*[:\-]?\s*([\d.]+)\s*kg/i),
+  };
+}
+
+function extractDateFromText(text) {
+  // YYYY/MM/DD or YYYY-MM-DD
+  const m1 = text.match(/\b(20\d{2})[\/\-](0?[1-9]|1[0-2])[\/\-](0?[1-9]|[12]\d|3[01])\b/);
+  if (m1) return `${m1[1]}-${m1[2].padStart(2,'0')}-${m1[3].padStart(2,'0')}`;
+  // DD/MM/YYYY
+  const m2 = text.match(/\b(0?[1-9]|[12]\d|3[01])[\/\-](0?[1-9]|1[0-2])[\/\-](20\d{2})\b/);
+  if (m2) return `${m2[3]}-${m2[2].padStart(2,'0')}-${m2[1].padStart(2,'0')}`;
+  return null;
+}
 
 function todayStr() { return new Date().toISOString().split('T')[0]; }
 function formatDate(d) { return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
@@ -36,8 +146,13 @@ export async function renderBodyScan(container) {
   container.innerHTML = `
     <div class="section-header">
       <h2>Body Scans</h2>
-      <button class="btn-primary btn-sm" id="add-scan-btn">${es ? '✕ Cancel Edit' : '+ Add Scan'}</button>
+      <div style="display:flex;gap:.4rem">
+        <button class="btn-secondary btn-sm" id="upload-scan-btn">📄 From File</button>
+        <button class="btn-primary btn-sm" id="add-scan-btn">${es ? '✕ Cancel' : '+ Add Scan'}</button>
+      </div>
     </div>
+    <input type="file" id="scan-file-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" style="display:none">
+    <div id="scan-upload-status" style="font-size:.85rem;padding:.1rem 0;min-height:1.2rem"></div>
 
     ${latest && !es ? renderLatestCard(latest, prev) : ''}
     ${latest && !es ? renderTargetsCard(latest) : ''}
@@ -224,6 +339,58 @@ function getNum(id) {
 function setupBodyScanEvents(container) {
   const formEl = container.querySelector('#scan-form-card');
   const addBtn = container.querySelector('#add-scan-btn');
+
+  // Upload from file
+  container.querySelector('#upload-scan-btn')?.addEventListener('click', () => {
+    container.querySelector('#scan-file-input')?.click();
+  });
+
+  container.querySelector('#scan-file-input')?.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    e.target.value = '';
+
+    const statusEl = container.querySelector('#scan-upload-status');
+    const setStatus = (msg, color = 'var(--muted)') => {
+      statusEl.textContent = msg; statusEl.style.color = color;
+    };
+
+    try {
+      const rawText = await extractScanText(file, setStatus);
+      const parsed  = parseInBodyText(rawText);
+      const date    = extractDateFromText(rawText);
+
+      // Count detected fields
+      const allFields = [...SCAN_FIELDS, ...SEG_FIELDS];
+      const detected  = allFields.filter(f => parsed[f.id] != null).length;
+
+      if (detected === 0) {
+        setStatus('⚠ No InBody values detected — make sure the file is a clear InBody printout.', 'var(--warning, #ffd700)');
+        return;
+      }
+
+      // Show and populate the form
+      formEl.style.display = 'block';
+      addBtn.textContent = '✕ Cancel';
+
+      if (date) {
+        const dateEl = container.querySelector('#scan-date');
+        if (dateEl) dateEl.value = date;
+      }
+
+      allFields.forEach(f => {
+        if (parsed[f.id] != null) {
+          const el = container.querySelector(`#scan-${f.id}`);
+          if (el) el.value = parsed[f.id];
+        }
+      });
+
+      setStatus(`✓ Detected ${detected} of ${allFields.length} fields — review below, then Save Scan.`, 'var(--success)');
+      formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } catch (err) {
+      setStatus('✕ ' + err.message, 'var(--danger)');
+    }
+  });
 
   addBtn?.addEventListener('click', () => {
     if (editingScan) {

@@ -341,9 +341,9 @@ function renderProgrammeUpload(metaA, metaB) {
         <option value="A">Programme A</option>
         <option value="B">Programme B</option>
       </select>
-      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme (PDF or JSON)</button>
+      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme (PDF, Word or JSON)</button>
     </div>
-    <input type="file" id="upload-prog-input" accept=".pdf,.json" style="display:none">
+    <input type="file" id="upload-prog-input" accept=".pdf,.doc,.docx,.json" style="display:none">
     <div id="upload-prog-status" style="font-size:.85rem;margin-bottom:.5rem"></div>
     <div id="pdf-review-area"></div>
     <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem">
@@ -733,6 +733,28 @@ async function importProgramme(file, prog) {
 
 // ── PDF support ────────────────────────────────────────────────────────────
 
+async function loadMammoth() {
+  if (window.mammoth) return window.mammoth;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+    s.onload = () => resolve(window.mammoth);
+    s.onerror = () => reject(new Error('Could not load Word parser — check internet connection'));
+    document.head.appendChild(s);
+  });
+}
+
+async function extractDocxText(file) {
+  if (file.name.toLowerCase().endsWith('.doc') && !file.name.toLowerCase().endsWith('.docx')) {
+    throw new Error('Old .doc format is not supported — please save as .docx in Word and try again');
+  }
+  const mammoth = await loadMammoth();
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  if (!result.value?.trim()) throw new Error('Could not read Word document — make sure it is a .docx file');
+  return result.value;
+}
+
 async function loadPdfJs() {
   if (window.pdfjsLib) return window.pdfjsLib;
   return new Promise((resolve, reject) => {
@@ -936,16 +958,21 @@ function setupProgrammeUploadEvents(container) {
     const prog = container.querySelector('#upload-prog-slot')?.value || 'A';
     e.target.value = '';
 
-    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+    const name = file.name.toLowerCase();
+    const isPdf  = name.endsWith('.pdf')  || file.type === 'application/pdf';
+    const isWord = name.endsWith('.docx') || name.endsWith('.doc') ||
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
+      file.type === 'application/msword';
 
-    if (isPdf) {
-      status.textContent = 'Parsing PDF…'; status.style.color = 'var(--muted)';
+    if (isPdf || isWord) {
+      status.textContent = isPdf ? 'Parsing PDF…' : 'Parsing Word document…';
+      status.style.color = 'var(--muted)';
       try {
-        const text = await extractPdfText(file);
+        const text = isPdf ? await extractPdfText(file) : await extractDocxText(file);
         const parsedDays = parseProgrammeText(text);
         const totalEx = Object.values(parsedDays).reduce((n, d) => n + d.exercises.length, 0);
         if (totalEx === 0) {
-          status.textContent = '⚠ No exercises detected. Make sure your PDF has day names (Monday, Tuesday…) and exercise lines. Try the JSON template instead.';
+          status.textContent = '⚠ No exercises detected. Make sure your document has day names (Monday, Tuesday…) followed by exercise lines.';
           status.style.color = 'var(--warning, #ffd700)';
           return;
         }

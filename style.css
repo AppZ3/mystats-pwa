@@ -429,6 +429,18 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 }
 .prog-upload-title { font-size: .88rem; font-weight: 600; }
 
+/* PDF review card */
+.pdf-review-card {
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .75rem; margin-bottom: .75rem;
+}
+.pdf-review-header { margin-bottom: .65rem; display: flex; flex-direction: column; gap: .2rem; }
+.pdf-day-section { margin-bottom: .6rem; }
+.pdf-day-name { font-size: .8rem; font-weight: 700; color: var(--accent); text-transform: uppercase; letter-spacing: .5px; margin-bottom: .25rem; }
+.pdf-ex-row { display: flex; align-items: center; gap: .4rem; padding: .2rem 0; border-bottom: 1px solid var(--border); }
+.pdf-ex-row:last-child { border-bottom: none; }
+.pdf-ex-name { flex: 1; font-size: .85rem; }
+
 .prog-day-block {
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: .65rem .75rem; margin-bottom: .6rem;

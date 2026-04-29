@@ -335,16 +335,17 @@ function renderProgrammeUpload(metaA, metaB) {
       </div>`;
   }
   return `
-    <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">Upload a JSON file to auto-fill exercises for each day and enable accuracy tracking on the Today tab.</p>
+    <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">Upload your programme as a <strong>PDF</strong> or JSON file — exercises auto-fill each day and accuracy tracking activates on the Today tab.</p>
     <div class="add-item-row" style="margin-bottom:.5rem">
       <select id="upload-prog-slot" class="input-field" style="flex:0 0 auto;width:9rem">
         <option value="A">Programme A</option>
         <option value="B">Programme B</option>
       </select>
-      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme JSON</button>
+      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme (PDF or JSON)</button>
     </div>
-    <input type="file" id="upload-prog-input" accept=".json" style="display:none">
+    <input type="file" id="upload-prog-input" accept=".pdf,.json" style="display:none">
     <div id="upload-prog-status" style="font-size:.85rem;margin-bottom:.5rem"></div>
+    <div id="pdf-review-area"></div>
     <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem">
       ${metaCard('A', metaA)}
       ${metaCard('B', metaB)}
@@ -711,6 +712,199 @@ async function importProgramme(file, prog) {
   }});
 }
 
+// ── PDF support ────────────────────────────────────────────────────────────
+
+async function loadPdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
+        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = () => reject(new Error('Could not load PDF parser — check internet connection'));
+    document.head.appendChild(s);
+  });
+}
+
+async function extractPdfText(file) {
+  const pdfjsLib = await loadPdfJs();
+  const data = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const pageTexts = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    // Group items by Y position (PDF y=0 is bottom, so group & sort descending)
+    const byY = {};
+    for (const item of content.items) {
+      const y = Math.round(item.transform[5] / 4) * 4;
+      (byY[y] = byY[y] || []).push(item);
+    }
+    const lines = Object.keys(byY).map(Number).sort((a, b) => b - a)
+      .map(y => byY[y].sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join(' ').trim())
+      .filter(Boolean);
+    pageTexts.push(lines.join('\n'));
+  }
+  return pageTexts.join('\n');
+}
+
+function parseProgrammeText(text) {
+  const DAY_MAP = {
+    monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6, sunday:0,
+    mon:1, tue:2, wed:3, thu:4, fri:5, sat:6, sun:0,
+  };
+
+  const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(Boolean);
+  const days = {};
+  let currentDay = null;
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+
+    // Match day name at start of line: "Monday", "Monday:", "MONDAY — Push"
+    const dayKey = Object.keys(DAY_MAP).find(d =>
+      lower.startsWith(d) && (lower.length === d.length || /[\s:–\-,\/]/.test(lower[d.length]))
+    );
+    if (dayKey) {
+      const dayNum = DAY_MAP[dayKey];
+      const rest = line.substring(dayKey.length).replace(/^[\s:–\-]+/, '').trim();
+      currentDay = dayNum;
+      if (!days[dayNum]) days[dayNum] = { label: rest || '', exercises: [] };
+      else if (rest && !days[dayNum].label) days[dayNum].label = rest;
+      continue;
+    }
+
+    // Match "Day 1" / "Day 2" etc.
+    const dayNumMatch = line.match(/^day\s+([1-7])\b/i);
+    if (dayNumMatch) {
+      const n = parseInt(dayNumMatch[1]);
+      const dayNum = [1, 2, 3, 4, 5, 6, 0][(n - 1) % 7];
+      const rest = line.substring(dayNumMatch[0].length).replace(/^[\s:–\-]+/, '').trim();
+      currentDay = dayNum;
+      if (!days[dayNum]) days[dayNum] = { label: rest || `Day ${n}`, exercises: [] };
+      continue;
+    }
+
+    if (currentDay === null) continue;
+
+    // Skip obvious non-exercise lines
+    if (/^(sets?|reps?|weight|exercise|week|phase|notes?|tempo|rest)\s*$/i.test(line)) continue;
+    if (line.length < 3 || line.length > 80) continue;
+
+    // Extract sets × reps patterns
+    const srPatterns = [
+      /(\d+)\s*[x×X]\s*([\d]+[\-–][\d]+|\d+)/,          // 4x8, 4×8-10
+      /(\d+)\s+sets?\s+(?:of\s+)?([\d]+[\-–][\d]+|\d+)\s*reps?/i,  // 3 sets of 12
+      /(\d+)\s*sets?[,\s]+([\d]+[\-–][\d]+|\d+)\s*reps?/i,
+    ];
+
+    let sets = null, reps = null, exerciseName = line;
+    for (const pat of srPatterns) {
+      const m = line.match(pat);
+      if (m) {
+        sets = parseInt(m[1]);
+        reps = m[2].replace('–', '-');
+        exerciseName = (line.slice(0, m.index) + line.slice(m.index + m[0].length))
+          .replace(/[-–:,]+$/, '').trim();
+        break;
+      }
+    }
+
+    // Clean bullets / leading numbers
+    exerciseName = exerciseName.replace(/^[-•*·◦▪▸\d.)\s]+/, '').trim();
+
+    if (exerciseName.length >= 3 && exerciseName.length <= 60 && !/^\d+(\.\d+)?$/.test(exerciseName)) {
+      const ex = { name: exerciseName };
+      if (sets) ex.sets = sets;
+      if (reps) ex.reps = reps;
+      days[currentDay].exercises.push(ex);
+    }
+  }
+
+  return days;
+}
+
+function showPdfReview(container, prog, parsedDays) {
+  const reviewArea = container.querySelector('#pdf-review-area');
+  if (!reviewArea) return;
+
+  // Keep a mutable copy so removes work without re-parsing
+  const mutable = {};
+  for (const [day, data] of Object.entries(parsedDays)) {
+    mutable[day] = { label: data.label, exercises: data.exercises.map(e => ({ ...e })) };
+  }
+
+  const render = () => {
+    const totalEx = Object.values(mutable).reduce((n, d) => n + d.exercises.length, 0);
+    reviewArea.innerHTML = `
+      <div class="pdf-review-card">
+        <div class="pdf-review-header">
+          <strong>Review Parsed Programme</strong>
+          <span class="muted" style="font-size:.8rem">${totalEx} exercises detected — remove any that look wrong, then save.</span>
+        </div>
+        ${Object.entries(mutable).map(([day, data]) => `
+          <div class="pdf-day-section">
+            <div class="pdf-day-name">${DAY_NAMES[+day]}${data.label ? ' — ' + data.label : ''}</div>
+            ${data.exercises.length === 0
+              ? '<p class="muted" style="font-size:.8rem;margin:.2rem 0">Rest / no exercises</p>'
+              : data.exercises.map((ex, i) => `
+                <div class="pdf-ex-row">
+                  <span class="pdf-ex-name">${ex.name}</span>
+                  ${ex.sets && ex.reps ? `<span class="plan-target">${ex.sets}×${ex.reps}</span>` : ''}
+                  <button class="btn-icon pdf-rem-ex" data-day="${day}" data-idx="${i}">✕</button>
+                </div>`).join('')}
+          </div>`).join('')}
+        <div style="display:flex;gap:.5rem;margin-top:.75rem">
+          <button class="btn-primary" id="pdf-confirm-save" style="flex:1">Save to Programme ${prog}</button>
+          <button class="btn-secondary" id="pdf-cancel-review">Cancel</button>
+        </div>
+      </div>`;
+
+    reviewArea.querySelectorAll('.pdf-rem-ex').forEach(btn => {
+      btn.onclick = () => {
+        mutable[btn.dataset.day].exercises.splice(+btn.dataset.idx, 1);
+        render();
+      };
+    });
+
+    reviewArea.querySelector('#pdf-confirm-save')?.addEventListener('click', async () => {
+      await saveParsedProgramme(mutable, prog);
+      reviewArea.innerHTML = '';
+      showToast(`Programme ${prog} saved!`);
+      setTimeout(() => renderSettings(container), 600);
+    });
+
+    reviewArea.querySelector('#pdf-cancel-review')?.addEventListener('click', () => {
+      reviewArea.innerHTML = '';
+    });
+  };
+
+  render();
+}
+
+async function saveParsedProgramme(parsedDays, prog) {
+  const schedule = {};
+  const targets = {};
+  for (const [dayNum, data] of Object.entries(parsedDays)) {
+    const exNames = data.exercises.map(e => e.name);
+    schedule[dayNum] = { label: data.label || '', exercises: exNames };
+    for (const ex of data.exercises) {
+      if (ex.sets || ex.reps) targets[ex.name] = { sets: ex.sets || null, reps: String(ex.reps || '') };
+    }
+  }
+  const key = prog.toLowerCase();
+  await dbPut('settings', { key: `programme_${key}_schedule`, value: schedule });
+  await dbPut('settings', { key: `programme_${key}_targets`, value: targets });
+  await dbPut('settings', { key: `programme_${key}_meta`, value: {
+    name: 'Uploaded Programme',
+    description: '',
+    uploadedAt: new Date().toISOString(),
+  }});
+}
+
 function setupProgrammeUploadEvents(container) {
   container.querySelector('#upload-prog-btn')?.addEventListener('click', () => {
     container.querySelector('#upload-prog-input')?.click();
@@ -721,16 +915,40 @@ function setupProgrammeUploadEvents(container) {
     if (!file) return;
     const status = container.querySelector('#upload-prog-status');
     const prog = container.querySelector('#upload-prog-slot')?.value || 'A';
+    e.target.value = '';
+
+    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+
+    if (isPdf) {
+      status.textContent = 'Parsing PDF…'; status.style.color = 'var(--muted)';
+      try {
+        const text = await extractPdfText(file);
+        const parsedDays = parseProgrammeText(text);
+        const totalEx = Object.values(parsedDays).reduce((n, d) => n + d.exercises.length, 0);
+        if (totalEx === 0) {
+          status.textContent = '⚠ No exercises detected. Make sure your PDF has day names (Monday, Tuesday…) and exercise lines. Try the JSON template instead.';
+          status.style.color = 'var(--warning, #ffd700)';
+          return;
+        }
+        status.textContent = `✓ Parsed ${totalEx} exercises — review below before saving.`;
+        status.style.color = 'var(--success)';
+        showPdfReview(container, prog, parsedDays);
+      } catch (err) {
+        status.textContent = '✕ ' + err.message; status.style.color = 'var(--danger)';
+      }
+      return;
+    }
+
+    // JSON path (existing)
     status.textContent = 'Reading…'; status.style.color = 'var(--muted)';
     try {
       await importProgramme(file, prog);
-      status.textContent = `✓ Programme loaded into Programme ${prog} — refresh to see changes in Today`;
+      status.textContent = `✓ Programme loaded into Programme ${prog}`;
       status.style.color = 'var(--success)';
       setTimeout(() => renderSettings(container), 1000);
     } catch (err) {
       status.textContent = '✕ ' + err.message; status.style.color = 'var(--danger)';
     }
-    e.target.value = '';
   });
 
   container.querySelectorAll('.clear-upload-prog').forEach(btn => {

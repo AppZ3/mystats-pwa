@@ -1,5 +1,5 @@
 import { PROGRAMME_A, PROGRAMME_B, PRE_TRAINING, MOBILITY_SESSIONS } from './profile.js';
-import { dbGet, dbPut, dbGetByIndex, dbAdd } from './db.js';
+import { dbGet, dbPut, dbGetByIndex, dbAdd, esc } from './db.js';
 import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule, getProgrammeTargets } from './config.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
@@ -113,8 +113,8 @@ function renderExerciseLogRow(ex, i) {
       <div class="ex-log-header">
         <div class="ex-log-info">
           <span class="plan-tag">Plan</span>
-          <span class="ex-log-name">${ex}</span>
-          ${targetStr ? `<span class="plan-target">${targetStr}</span>` : ''}
+          <span class="ex-log-name">${esc(ex)}</span>
+          ${targetStr ? `<span class="plan-target">${esc(targetStr)}</span>` : ''}
         </div>
         <div class="ex-log-status">
           ${hasLog ? `<span class="badge info">✓ ${summary}</span>` : ''}
@@ -124,7 +124,7 @@ function renderExerciseLogRow(ex, i) {
           <button class="toggle-ex-log" data-idx="${i}">${isOpen ? 'Close ▲' : 'Log ▼'}</button>
         </div>
       </div>
-      ${targetStr && isOpen ? `<div class="plan-target-bar">Target: ${targetStr}</div>` : ''}
+      ${targetStr && isOpen ? `<div class="plan-target-bar">Target: ${esc(targetStr)}</div>` : ''}
       <div class="ex-log-body ${isOpen ? '' : 'hidden'}" id="ex-log-body-${i}">
         ${isRun ? renderRunLog(log?.run || {}) : renderSetsLog(log?.sets || [], log?.notes || '')}
       </div>
@@ -169,7 +169,7 @@ function renderSetsLog(sets, notes) {
             <input type="number" class="set-input weight-in" placeholder="kg"   value="${s.weight || ''}" step="0.5" min="0">
             <span class="set-sep">×</span>
             <input type="number" class="set-input reps-in"   placeholder="reps" value="${s.reps   || ''}" min="1">
-            <input type="text"   class="set-input note-in"   placeholder="note" value="${s.note   || ''}">
+            <input type="text"   class="set-input note-in"   placeholder="note" value="${esc(s.note || '')}">
             <button class="btn-icon rem-actual-set" data-si="${si}">−</button>
           </div>`).join('')}
       </div>
@@ -272,7 +272,7 @@ export async function renderToday(container) {
         <div class="card-label">Today's Session</div>
         ${todayWorkoutId ? '<span class="badge info">✓ Saved</span>' : ''}
       </div>
-      <h3>${session.label || 'Rest Day'}</h3>
+      <h3>${esc(session.label || 'Rest Day')}</h3>
 
       ${sessionExercises.length > 0 ? `
         <div class="ex-log-hint">Tap <strong>Log ▼</strong> next to each exercise to record actual vs plan.</div>

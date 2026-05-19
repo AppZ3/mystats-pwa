@@ -1,4 +1,4 @@
-import { dbGet, dbPut, dbAdd, dbGetAll, dbDelete, dbClear } from './db.js';
+import { dbGet, dbPut, dbAdd, dbGetAll, dbDelete, dbClear, esc } from './db.js';
 import { MORNING_ROUTINE, SUPPLEMENTS, PROGRAMME_A, PROGRAMME_B, TARGETS, DEFAULT_CHECKLIST_ITEMS, ALL_EXERCISES, SCAN_HISTORY } from './profile.js';
 import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule, getTargets, getUserProfile, getProgrammeMeta } from './config.js';
 
@@ -235,8 +235,8 @@ function renderProgramme(prog, schedule) {
 function progExRow(ex, ei, day, prog) {
   return `
     <div class="edit-list-item prog-ex-item" data-day="${day}" data-prog="${prog}" data-ei="${ei}">
-      <span class="prog-ex-name" style="flex:1">${ex}</span>
-      <button class="btn-icon rem-prog-ex" data-day="${day}" data-prog="${prog}" data-ei="${ei}">✕</button>
+      <span class="prog-ex-name" style="flex:1">${esc(ex)}</span>
+      <button class="btn-icon rem-prog-ex" data-day="${day}" data-prog="${prog}" data-ei="${ei}" aria-label="Remove ${esc(ex)}">✕</button>
     </div>`;
 }
 
@@ -328,8 +328,8 @@ function renderProgrammeUpload(metaA, metaB) {
     if (!meta) return `<p class="muted" style="font-size:.8rem">Programme ${prog}: no upload</p>`;
     return `
       <div class="prog-upload-meta">
-        <div class="prog-upload-title">${meta.name}</div>
-        ${meta.description ? `<div class="muted" style="font-size:.78rem">${meta.description}</div>` : ''}
+        <div class="prog-upload-title">${esc(meta.name)}</div>
+        ${meta.description ? `<div class="muted" style="font-size:.78rem">${esc(meta.description)}</div>` : ''}
         <div class="muted" style="font-size:.75rem">Uploaded ${fmtDate(meta.uploadedAt.split('T')[0])}</div>
         <button class="btn-danger btn-sm clear-upload-prog" data-prog="${prog}" style="margin-top:.35rem">Clear</button>
       </div>`;
@@ -582,8 +582,8 @@ function setupProgEvents(container, prog, schedule) {
       const matches = ALL_EXERCISES.filter(e => e.toLowerCase().includes(q)).slice(0, 6);
       const custom = input.value.trim();
       const hasExact = matches.some(m => m.toLowerCase() === custom.toLowerCase());
-      dd.innerHTML = matches.map(e => `<div class="dropdown-item" data-name="${e}">${e}</div>`).join('') +
-        (!hasExact && custom ? `<div class="dropdown-item" data-name="${custom}">+ Add "${custom}"</div>` : '');
+      dd.innerHTML = matches.map(e => `<div class="dropdown-item" data-name="${esc(e)}">${esc(e)}</div>`).join('') +
+        (!hasExact && custom ? `<div class="dropdown-item" data-name="${esc(custom)}">+ Add "${esc(custom)}"</div>` : '');
       dd.classList.remove('hidden');
       dd.querySelectorAll('.dropdown-item').forEach(item => {
         item.addEventListener('click', () => {
@@ -592,9 +592,14 @@ function setupProgEvents(container, prog, schedule) {
         });
       });
     });
-    document.addEventListener('click', e => {
+    const closeHandler = e => {
+      if (!document.contains(container)) {
+        document.removeEventListener('click', closeHandler);
+        return;
+      }
       if (!input.parentElement?.contains(e.target)) dd.classList.add('hidden');
-    });
+    };
+    document.addEventListener('click', closeHandler);
   });
 
   // Remove exercise (delegated)
@@ -888,14 +893,14 @@ function showPdfReview(container, prog, parsedDays) {
         </div>
         ${Object.entries(mutable).map(([day, data]) => `
           <div class="pdf-day-section">
-            <div class="pdf-day-name">${DAY_NAMES[+day]}${data.label ? ' — ' + data.label : ''}</div>
+            <div class="pdf-day-name">${esc(DAY_NAMES[+day])}${data.label ? ' — ' + esc(data.label) : ''}</div>
             ${data.exercises.length === 0
               ? '<p class="muted" style="font-size:.8rem;margin:.2rem 0">Rest / no exercises</p>'
               : data.exercises.map((ex, i) => `
                 <div class="pdf-ex-row">
-                  <span class="pdf-ex-name">${ex.name}</span>
-                  ${ex.sets && ex.reps ? `<span class="plan-target">${ex.sets}×${ex.reps}</span>` : ''}
-                  <button class="btn-icon pdf-rem-ex" data-day="${day}" data-idx="${i}">✕</button>
+                  <span class="pdf-ex-name">${esc(ex.name)}</span>
+                  ${ex.sets && ex.reps ? `<span class="plan-target">${esc(String(ex.sets))}×${esc(String(ex.reps))}</span>` : ''}
+                  <button class="btn-icon pdf-rem-ex" data-day="${day}" data-idx="${i}" aria-label="Remove ${esc(ex.name)}">✕</button>
                 </div>`).join('')}
           </div>`).join('')}
         <div style="display:flex;gap:.5rem;margin-top:.75rem">
@@ -911,16 +916,16 @@ function showPdfReview(container, prog, parsedDays) {
       };
     });
 
-    reviewArea.querySelector('#pdf-confirm-save')?.addEventListener('click', async () => {
+    const confirmBtn = reviewArea.querySelector('#pdf-confirm-save');
+    if (confirmBtn) confirmBtn.onclick = async () => {
       await saveParsedProgramme(mutable, prog);
       reviewArea.innerHTML = '';
       showToast(`Programme ${prog} saved!`);
-      setTimeout(() => renderSettings(container), 600);
-    });
+      setTimeout(() => { if (document.contains(container)) renderSettings(container); }, 600);
+    };
 
-    reviewArea.querySelector('#pdf-cancel-review')?.addEventListener('click', () => {
-      reviewArea.innerHTML = '';
-    });
+    const cancelBtn = reviewArea.querySelector('#pdf-cancel-review');
+    if (cancelBtn) cancelBtn.onclick = () => { reviewArea.innerHTML = ''; };
   };
 
   render();

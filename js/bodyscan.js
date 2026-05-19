@@ -33,6 +33,15 @@ async function loadTesseract() {
 
 async function extractScanText(file, setStatus) {
   const name = file.name.toLowerCase();
+
+  if (name.endsWith('.heic') || name.endsWith('.heif')) {
+    throw new Error('HEIC/HEIF images are not supported — please export as JPEG or PNG from Photos and try again');
+  }
+
+  if (file.size > 30 * 1024 * 1024) {
+    throw new Error('File too large (max 30 MB) — try a lower-resolution image');
+  }
+
   const isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
 
   if (isPdf) {
@@ -114,7 +123,7 @@ function extractDateFromText(text) {
 }
 
 function todayStr() { return new Date().toISOString().split('T')[0]; }
-function formatDate(d) { return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
+function formatDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 function delta(curr, prev) {
   if (prev == null || curr == null) return '';
@@ -398,8 +407,14 @@ function setupBodyScanEvents(container) {
       renderBodyScan(container);
       return;
     }
-    formEl.style.display = formEl.style.display === 'none' ? 'block' : 'none';
-    addBtn.textContent = formEl.style.display === 'none' ? '+ Add Scan' : '✕ Cancel';
+    const isShowing = formEl.style.display !== 'none';
+    formEl.style.display = isShowing ? 'none' : 'block';
+    addBtn.textContent = isShowing ? '+ Add Scan' : '✕ Cancel';
+    if (isShowing) {
+      // Clear all form fields when cancelling
+      container.querySelectorAll('#scan-form-card input').forEach(el => { el.value = ''; });
+      container.querySelector('#scan-upload-status').textContent = '';
+    }
   });
 
   container.querySelector('#cancel-scan-edit')?.addEventListener('click', () => {

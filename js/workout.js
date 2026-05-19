@@ -1,11 +1,11 @@
 import { ALL_EXERCISES, SKILL_PROGRESSIONS } from './profile.js';
-import { dbAdd, dbPut, dbGetAll, dbDelete } from './db.js';
+import { dbAdd, dbPut, dbGetAll, dbDelete, esc } from './db.js';
 
 let currentSession = { date: '', exercises: [] };
 let editingWorkoutId = null;
 
 function todayStr() { return new Date().toISOString().split('T')[0]; }
-function formatDate(d) { return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
+function formatDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 export async function renderWorkout(container) {
   if (!editingWorkoutId && currentSession.exercises.length === 0) {
@@ -80,8 +80,8 @@ function renderWorkoutCard(w) {
       <div class="workout-exercises">
         ${w.exercises.map(ex => `
           <div class="ex-summary">
-            <strong>${ex.name}</strong>
-            <span class="muted">${(ex.sets || []).map(s => s.reps ? `${s.weight ? s.weight + 'kg×' : ''}${s.reps}` : s.note || '').filter(Boolean).join(' | ') || ex.notes || ''}</span>
+            <strong>${esc(ex.name)}</strong>
+            <span class="muted">${esc((ex.sets || []).map(s => s.reps ? `${s.weight ? s.weight + 'kg×' : ''}${s.reps}` : s.note || '').filter(Boolean).join(' | ') || ex.notes || '')}</span>
           </div>
         `).join('')}
       </div>
@@ -99,8 +99,8 @@ function renderSessionExercises() {
   el.innerHTML = currentSession.exercises.map((ex, ei) => `
     <div class="session-ex" data-ei="${ei}">
       <div class="session-ex-header">
-        <strong>${ex.name}</strong>
-        <button class="btn-icon remove-ex" data-ei="${ei}">✕</button>
+        <strong>${esc(ex.name)}</strong>
+        <button class="btn-icon remove-ex" data-ei="${ei}" aria-label="Remove ${esc(ex.name)}">✕</button>
       </div>
       <div class="sets-list">
         ${ex.sets.map((s, si) => `
@@ -109,13 +109,13 @@ function renderSessionExercises() {
             <input type="number" class="set-input weight-in" placeholder="kg" value="${s.weight || ''}" min="0" step="0.5" data-field="weight" data-ei="${ei}" data-si="${si}">
             <span class="set-sep">×</span>
             <input type="number" class="set-input reps-in" placeholder="reps" value="${s.reps || ''}" min="1" data-field="reps" data-ei="${ei}" data-si="${si}">
-            <input type="text" class="set-input note-in" placeholder="note" value="${s.note || ''}" data-field="note" data-ei="${ei}" data-si="${si}">
+            <input type="text" class="set-input note-in" placeholder="note" value="${esc(s.note || '')}" data-field="note" data-ei="${ei}" data-si="${si}">
             <button class="btn-icon remove-set" data-ei="${ei}" data-si="${si}">−</button>
           </div>
         `).join('')}
         <button class="btn-add-set" data-ei="${ei}">+ Add Set</button>
       </div>
-      <input type="text" class="input-field" style="margin-top:.35rem;font-size:.83rem" placeholder="Exercise notes..." value="${ex.notes || ''}" data-ei="${ei}" id="ex-notes-${ei}">
+      <input type="text" class="input-field" style="margin-top:.35rem;font-size:.83rem" placeholder="Exercise notes..." value="${esc(ex.notes || '')}" data-ei="${ei}" id="ex-notes-${ei}">
     </div>
   `).join('');
 
@@ -166,13 +166,13 @@ function setupWorkoutEvents(container, allWorkouts) {
     const q = searchInput.value.toLowerCase();
     if (!q) { dropdown.classList.add('hidden'); return; }
     const matches = ALL_EXERCISES.filter(e => e.toLowerCase().includes(q)).slice(0, 8);
-    // Allow adding custom exercise if no exact match
+    const custom = searchInput.value;
     if (!matches.length) {
-      dropdown.innerHTML = `<div class="dropdown-item add-custom" data-name="${searchInput.value}">+ Add "${searchInput.value}"</div>`;
+      dropdown.innerHTML = `<div class="dropdown-item add-custom" data-name="${esc(custom)}">+ Add "${esc(custom)}"</div>`;
       dropdown.classList.remove('hidden');
     } else {
-      dropdown.innerHTML = matches.map(e => `<div class="dropdown-item" data-name="${e}">${e}</div>`).join('') +
-        `<div class="dropdown-item add-custom" data-name="${searchInput.value}">+ Add "${searchInput.value}"</div>`;
+      dropdown.innerHTML = matches.map(e => `<div class="dropdown-item" data-name="${esc(e)}">${esc(e)}</div>`).join('') +
+        `<div class="dropdown-item add-custom" data-name="${esc(custom)}">+ Add "${esc(custom)}"</div>`;
       dropdown.classList.remove('hidden');
     }
     dropdown.querySelectorAll('.dropdown-item').forEach(item => {
@@ -185,9 +185,13 @@ function setupWorkoutEvents(container, allWorkouts) {
     });
   });
 
-  document.addEventListener('click', e => {
+  if (container._workoutOutsideClick) {
+    document.removeEventListener('click', container._workoutOutsideClick);
+  }
+  container._workoutOutsideClick = e => {
     if (!container.querySelector('.search-wrap')?.contains(e.target)) dropdown?.classList.add('hidden');
-  });
+  };
+  document.addEventListener('click', container._workoutOutsideClick);
 
   container.querySelector('#cancel-edit')?.addEventListener('click', () => {
     editingWorkoutId = null;

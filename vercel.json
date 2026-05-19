@@ -16,7 +16,10 @@
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        { "key": "X-Content-Type-Options", "value": "nosniff" },
+        { "key": "X-Frame-Options", "value": "DENY" },
+        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; script-src 'self' cdnjs.cloudflare.com cdn.jsdelivr.net; worker-src blob: cdnjs.cloudflare.com cdn.jsdelivr.net; img-src 'self' data: blob:; connect-src 'self' cdnjs.cloudflare.com cdn.jsdelivr.net; style-src 'self'; font-src 'self' data:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'" }
       ]
     }
   ]

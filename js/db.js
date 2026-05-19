@@ -91,6 +91,10 @@ export function dbClear(store) {
   });
 }
 
+export function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
 export function dbGetByIndex(store, index, value) {
   return new Promise((resolve, reject) => {
     const req = tx(store).index(index).getAll(value);

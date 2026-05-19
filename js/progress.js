@@ -2,7 +2,7 @@ import { SCAN_HISTORY, TARGETS } from './profile.js';
 import { dbGetAll } from './db.js';
 
 function formatDate(dateStr) {
-  return new Date(dateStr).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short' });
 }
 
 function parseDuration(str) {
@@ -124,7 +124,7 @@ function renderSummaryCards(scans, runs, workouts) {
       <div class="stat-card">
         <div class="stat-val">${latest?.smm ?? '–'}<span class="stat-unit">kg</span></div>
         <div class="stat-label">Muscle Mass</div>
-        ${smmChange != null ? `<div class="stat-delta pos">+${smmChange}kg</div>` : ''}
+        ${smmChange != null && !isNaN(smmChange) ? `<div class="stat-delta ${+smmChange >= 0 ? 'pos' : 'neg'}">${+smmChange > 0 ? '+' : ''}${smmChange}kg</div>` : ''}
       </div>
       <div class="stat-card">
         <div class="stat-val">${latest?.pbf ?? '–'}<span class="stat-unit">%</span></div>
@@ -206,7 +206,7 @@ function initVolumeChart(workouts, defaults) {
     startOfWeek.setDate(d.getDate() - d.getDay() + 1);
     const key = startOfWeek.toISOString().split('T')[0];
     if (!weekMap[key]) weekMap[key] = 0;
-    weekMap[key] += w.exercises.reduce((s, e) => s + e.sets.length, 0);
+    weekMap[key] += w.exercises.reduce((s, e) => s + (e.sets || []).length, 0);
   });
   const weeks = Object.keys(weekMap).sort();
   const data = weeks.map(w => weekMap[w]);

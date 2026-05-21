@@ -198,7 +198,7 @@ function renderStrengthBlock(block) {
         const rows      = [];
         for (let i = 0; i < Math.max(targetN, existing.length); i++) {
           const s = existing[i] || {};
-          rows.push({ weight: s.weight ?? '', reps: s.reps ?? '', done: !!(s.weight || s.reps) });
+          rows.push({ weight: s.weight ?? '', reps: s.reps ?? ex.reps ?? '', done: !!(s.weight || s.reps) });
         }
         return `
           <div class="str-exercise" data-ex="${esc(ex.name)}">
@@ -586,10 +586,12 @@ function setupTodayEvents(container) {
         tickBtn.dataset.done = '1';
         tickBtn.textContent  = '✓';
       } else {
-        // Un-tick
+        // Un-tick — zero blockLog and clear DOM inputs
         if (exName && blockLog[exName]?.sets?.[idx]) {
           blockLog[exName].sets[idx] = { weight: null, reps: null, note: '' };
         }
+        wIn.value = '';
+        rIn.value = '';
         tile.classList.remove('is-done');
         tickBtn.classList.remove('is-done');
         tickBtn.dataset.done = '0';

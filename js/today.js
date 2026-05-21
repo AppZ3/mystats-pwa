@@ -1,6 +1,6 @@
 import { PROGRAMME_A, PROGRAMME_B, PRE_TRAINING, MOBILITY_SESSIONS } from './profile.js';
 import { dbGet, dbPut, dbGetByIndex, dbAdd, esc } from './db.js';
-import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule, getProgrammeTargets, getProgrammeSession } from './config.js';
+import { getChecklistItems, getSupplements, getProgrammeSchedule, getProgrammeTargets, getProgrammeSession } from './config.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
 let blockLog = {};       // {exerciseName: {sets:[{weight,reps,note}], hold, level}, _warmup:bool, '_core:...':bool, _run:{...}, '_circuit:N':bool}
@@ -12,6 +12,8 @@ let todayWorkoutId = null;
 let pendingProg = null;   // null = use saved value
 let pendingWeek = null;
 let pendingDay  = null;
+
+let todaySubTab = 'session'; // 'session' | 'checklist' | 'supps'
 
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const WEEK_LABELS = ['','Foundation','Intensification','Volume','Deload'];
@@ -328,70 +330,12 @@ function renderCheckItem(key, label, icon, checked) {
     </label>`;
 }
 
-// ── Main render ────────────────────────────────────────────────────────────
-export async function renderToday(container) {
-  if (Object.keys(blockLog).length === 0) await loadTodayLog();
-
-  const [savedProg, savedWeek, checklistItems, routineSteps, allSupplements] = await Promise.all([
-    getCurrentProgramme(), getCurrentWeek(), getChecklistItems(), getMorningRoutine(), getSupplements(),
-  ]);
-  const prog = pendingProg ?? savedProg;
-  const week = pendingWeek ?? savedWeek;
-  if (pendingDay !== null) selectedDay = pendingDay;
-
-  const session = getProgrammeSession(prog, selectedDay);
-  currentBlocks = session.blocks || [];
-  const checklist = await getTodayChecklist();
-  const mobility = getMobilityForDay(selectedDay);
-  const dateStr = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
-  const morningSupps = allSupplements.filter(s => s.timing?.toLowerCase().startsWith('morning'));
-  const eveningSupps = allSupplements.filter(s => s.timing?.toLowerCase().includes('evening') || s.timing?.toLowerCase().includes('bed'));
-  const progress = sessionProgress();
-  const isRest = currentBlocks.length === 0;
-
-  container.innerHTML = `
-    <div class="section-header">
-      <h2>${esc(dateStr)}</h2>
-    </div>
-
-    <div class="card session-control-card">
-      <div class="card-label">Session Control</div>
-      <div class="control-row">
-        <span class="control-label">Programme</span>
-        <div class="toggle-group compact">
-          <button class="toggle-btn ${prog === 'A' ? 'active' : ''}" data-prog="A">A <small>Calisthenics</small></button>
-          <button class="toggle-btn ${prog === 'B' ? 'active' : ''}" data-prog="B">B <small>Power & Strength</small></button>
-        </div>
-      </div>
-      <div class="control-row">
-        <span class="control-label">Week</span>
-        <div class="toggle-group compact">
-          ${[1,2,3,4].map(w => `
-            <button class="toggle-btn ${week === w ? 'active' : ''}" data-week="${w}">
-              ${w} <small>${WEEK_LABELS[w]}</small>
-            </button>`).join('')}
-        </div>
-      </div>
-      <div class="control-row">
-        <span class="control-label">Day</span>
-        <div class="day-selector">
-          ${DAY_LABELS.map((label, i) => `
-            <button class="day-sel-btn ${selectedDay === i ? 'active' : ''} ${i === new Date().getDay() ? 'today' : ''}" data-day="${i}">
-              ${label}
-            </button>`).join('')}
-        </div>
-      </div>
-      <div class="week-context-bar">
-        <span class="week-badge">Week ${week} — ${WEEK_LABELS[week]}</span>
-        <span class="muted" style="font-size:.78rem">${WEEK_HINTS[week]}</span>
-      </div>
-      <button id="apply-session" class="btn-primary" style="width:100%;margin-top:.65rem">Load Session</button>
-    </div>
-
+// ── Panel helpers ──────────────────────────────────────────────────────────
+function renderSessionPanel(session, isRest, progress, mobility) {
+  return `
     <div class="card session-card ${isRest ? 'rest-day' : ''}">
       <div class="card-header-row">
         <div>
-          <div class="card-label">Today's Session</div>
           <h3>${esc(session.label || 'Rest Day')}</h3>
           ${session.focus ? `<div class="session-focus">${esc(session.focus)}</div>` : ''}
         </div>
@@ -404,7 +348,6 @@ export async function renderToday(container) {
             </div>` : ''}
         </div>
       </div>
-
       ${isRest ? `
         <p class="muted" style="margin-top:.75rem">Rest day. Recover well — gains happen during rest.</p>
       ` : `
@@ -420,43 +363,122 @@ export async function renderToday(container) {
         </button>
       `}
     </div>
-
     ${mobility ? `
     <div class="card mobility-card">
       <div class="card-label">Mobility — ${DAY_LABELS[selectedDay]}</div>
       <h3>${esc(mobility.label)}</h3>
       <p class="muted">${esc(mobility.duration)} · ${esc(mobility.focus)}</p>
     </div>` : ''}
+  `;
+}
 
+function renderChecklistPanel(checklistItems, checklist) {
+  const total = checklistItems.length;
+  const done  = checklistItems.filter(i => checklist[i.key]).length;
+  const pct   = total ? Math.round(done / total * 100) : 0;
+  return `
     <div class="card">
-      <div class="card-label">Daily Checklist</div>
+      <div class="card-header-row" style="margin-bottom:.5rem;">
+        <span class="card-label" style="margin-bottom:0;">Daily Checklist</span>
+        <span class="prog-pct" style="font-size:.8rem;">${done}/${total}</span>
+      </div>
+      <div class="prog-bar-track" style="width:100%;margin-bottom:.75rem;">
+        <div class="prog-bar-fill" style="width:${pct}%"></div>
+      </div>
       <div class="checklist" id="today-checklist">
         ${checklistItems.map(item => renderCheckItem(item.key, item.label, item.icon || '', checklist[item.key] || false)).join('')}
       </div>
     </div>
+  `;
+}
 
-    <div class="card">
-      <div class="card-label">Morning CARs Routine</div>
-      <ul class="routine-list">${routineSteps.map(r => `<li>${esc(r)}</li>`).join('')}</ul>
+function renderSuppsPanel(allSupplements) {
+  const groups = [
+    { label: 'Morning — fasted',    filter: s => /^morning/i.test(s.timing) && !s.withFat },
+    { label: 'Morning — with fat',  filter: s => /^morning/i.test(s.timing) && s.withFat },
+    { label: 'Pre-training',        filter: s => /pre.?train|pre.?workout/i.test(s.timing) },
+    { label: 'With meals',          filter: s => /meal|lunch/i.test(s.timing) && !/morning|evening|bed/i.test(s.timing) },
+    { label: 'Evening',             filter: s => /evening/i.test(s.timing) },
+    { label: 'Before bed',          filter: s => /bed/i.test(s.timing) },
+    { label: 'Post-training',       filter: s => /post.?train/i.test(s.timing) },
+  ];
+  const seen = new Set();
+  return groups.map(g => {
+    const items = allSupplements.filter(s => !seen.has(s.name) && g.filter(s));
+    items.forEach(s => seen.add(s.name));
+    if (!items.length) return '';
+    return `
+      <div class="card">
+        <div class="card-label">${esc(g.label)}</div>
+        <ul class="supp-list">
+          ${items.map(s => `
+            <li>
+              <span>${esc(s.name)}</span>
+              <span class="badge ${s.phase === 1 ? 'success' : s.phase === 2 ? 'info' : 'warning'}">Ph${s.phase}</span>
+            </li>`).join('')}
+        </ul>
+      </div>`;
+  }).join('');
+}
+
+// ── Main render ────────────────────────────────────────────────────────────
+export async function renderToday(container) {
+  if (Object.keys(blockLog).length === 0) await loadTodayLog();
+
+  const [savedProg, savedWeek, checklistItems, allSupplements] = await Promise.all([
+    getCurrentProgramme(), getCurrentWeek(), getChecklistItems(), getSupplements(),
+  ]);
+  const prog = pendingProg ?? savedProg;
+  const week = pendingWeek ?? savedWeek;
+  if (pendingDay !== null) selectedDay = pendingDay;
+
+  const session  = getProgrammeSession(prog, selectedDay);
+  currentBlocks  = session.blocks || [];
+  const checklist = await getTodayChecklist();
+  const mobility  = getMobilityForDay(selectedDay);
+  const dateStr   = new Date().toLocaleDateString('en-AU', { weekday: 'long', day: 'numeric', month: 'long' });
+  const progress  = sessionProgress();
+  const isRest    = currentBlocks.length === 0;
+
+  container.innerHTML = `
+    <div class="today-date-row">
+      <span class="today-date">${esc(dateStr)}</span>
+      <span class="today-prog-badge">Prog ${esc(prog)} · W${week}</span>
     </div>
 
-    <div class="card">
-      <div class="card-label">Morning Supplements</div>
-      <ul class="supp-list">
-        ${morningSupps.map(s => `
-          <li>
-            <span>${esc(s.name)}</span>
-            <span class="badge ${s.withFat ? 'warning' : 'info'}">${s.withFat ? '+ fat' : (s.timing || '').replace(/morning ?/i, '') || 'morning'}</span>
-          </li>`).join('')}
-      </ul>
+    <div class="session-ctrl-bar">
+      <div class="ctrl-group">
+        <button class="ctrl-pill prog-pill ${prog === 'A' ? 'active' : ''}" data-prog="A">A</button>
+        <button class="ctrl-pill prog-pill ${prog === 'B' ? 'active' : ''}" data-prog="B">B</button>
+      </div>
+      <div class="ctrl-group">
+        ${[1,2,3,4].map(w => `
+          <button class="ctrl-pill week-pill ${week === w ? 'active' : ''}" data-week="${w}">W${w}</button>
+        `).join('')}
+      </div>
+      <div class="ctrl-group">
+        ${DAY_LABELS.map((label, i) => `
+          <button class="ctrl-pill day-pill ${selectedDay === i ? 'active' : ''} ${i === new Date().getDay() ? 'is-today' : ''}" data-day="${i}">
+            ${label}
+          </button>`).join('')}
+      </div>
+      <button id="apply-session" class="ctrl-apply hidden">Apply</button>
     </div>
 
-    <div class="card">
-      <div class="card-label">Evening Supplements</div>
-      <ul class="supp-list">
-        ${eveningSupps.map(s => `
-          <li><span>${esc(s.name)}</span><span class="badge info">${esc(s.timing || '')}</span></li>`).join('')}
-      </ul>
+    <div class="today-tabs">
+      <button class="today-tab ${todaySubTab === 'session'   ? 'active' : ''}" data-subtab="session">Session</button>
+      <button class="today-tab ${todaySubTab === 'checklist' ? 'active' : ''}" data-subtab="checklist">Checklist</button>
+      <button class="today-tab ${todaySubTab === 'supps'     ? 'active' : ''}" data-subtab="supps">Supps</button>
+    </div>
+
+    <div id="today-panel-session"   class="${todaySubTab !== 'session'   ? 'hidden' : ''}">
+      ${renderSessionPanel(session, isRest, progress, mobility)}
+    </div>
+    <div id="today-panel-checklist" class="${todaySubTab !== 'checklist' ? 'hidden' : ''}">
+      ${renderChecklistPanel(checklistItems, checklist)}
+    </div>
+    <div id="today-panel-supps"     class="${todaySubTab !== 'supps'     ? 'hidden' : ''}">
+      ${renderSuppsPanel(allSupplements)}
     </div>
   `;
 
@@ -465,6 +487,18 @@ export async function renderToday(container) {
 
 // ── Events ─────────────────────────────────────────────────────────────────
 function setupTodayEvents(container) {
+  // Inner tab switching
+  container.querySelectorAll('.today-tab').forEach(btn => {
+    btn.addEventListener('click', () => {
+      todaySubTab = btn.dataset.subtab;
+      container.querySelectorAll('.today-tab').forEach(b => b.classList.toggle('active', b === btn));
+      ['session', 'checklist', 'supps'].forEach(id => {
+        const panel = container.querySelector(`#today-panel-${id}`);
+        if (panel) panel.classList.toggle('hidden', id !== todaySubTab);
+      });
+    });
+  });
+
   // Programme toggle — visual only, committed on Apply
   container.querySelectorAll('[data-prog]').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -479,17 +513,15 @@ function setupTodayEvents(container) {
     btn.addEventListener('click', () => {
       pendingWeek = +btn.dataset.week;
       container.querySelectorAll('[data-week]').forEach(b => b.classList.toggle('active', b === btn));
-      const bar = container.querySelector('.week-context-bar');
-      if (bar) bar.querySelector('.week-badge').textContent = `Week ${pendingWeek} — ${WEEK_LABELS[pendingWeek]}`;
       markApplyPending(container);
     });
   });
 
   // Day selector — visual only
-  container.querySelectorAll('.day-sel-btn').forEach(btn => {
+  container.querySelectorAll('[data-day]').forEach(btn => {
     btn.addEventListener('click', () => {
       pendingDay = +btn.dataset.day;
-      container.querySelectorAll('.day-sel-btn').forEach(b => b.classList.toggle('active', b === btn));
+      container.querySelectorAll('[data-day]').forEach(b => b.classList.toggle('active', b === btn));
       markApplyPending(container);
     });
   });
@@ -614,11 +646,7 @@ function setupTodayEvents(container) {
 }
 
 function markApplyPending(container) {
-  const btn = container.querySelector('#apply-session');
-  if (btn) {
-    btn.textContent = 'Apply Changes →';
-    btn.style.background = 'var(--accent2)';
-  }
+  container.querySelector('#apply-session')?.classList.remove('hidden');
 }
 
 function refreshProgress(container) {

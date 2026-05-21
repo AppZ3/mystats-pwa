@@ -3,7 +3,88 @@ import { dbAdd, dbPut, dbGet, dbGetAll, dbDelete } from './db.js';
 
 let editingScan = null;
 
-// ── File → text extraction ─────────────────────────────────────────────────
+// ── Claude vision extraction (images) ─────────────────────────────────────
+
+async function extractWithClaudeVision(file, apiKey, setStatus) {
+  setStatus('loading', 'Reading image…', 10);
+
+  const base64 = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result.split(',')[1]);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+
+  const mediaType = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+
+  setStatus('loading', 'Analysing scan with Claude…', 40);
+
+  const prompt = `This is an InBody body composition scan result. Extract every numeric value visible and return ONLY valid JSON using these exact field names (null for any not found):
+
+{
+  "date": "YYYY-MM-DD or null",
+  "weight": null,
+  "smm": null,
+  "pbf": null,
+  "bodyFatMass": null,
+  "bmi": null,
+  "vfl": null,
+  "vfa": null,
+  "phaseAngle": null,
+  "bmr": null,
+  "inbodyScore": null,
+  "tbw": null,
+  "protein": null,
+  "minerals": null,
+  "ecwRatio": null,
+  "ffmi": null,
+  "whr": null,
+  "bmc": null,
+  "rightArm": null,
+  "leftArm": null,
+  "trunk": null,
+  "rightLeg": null,
+  "leftLeg": null
+}
+
+Key mappings: smm = Skeletal Muscle Mass (kg), pbf = Body Fat % (PBF), vfl = Visceral Fat Level, phaseAngle = Phase Angle in degrees, bmr = BMR in kcal, tbw = Total Body Water (L), ecwRatio = ECW/TBW ratio, rightArm/leftArm/trunk/rightLeg/leftLeg = segmental lean mass in kg. Return ONLY the JSON object, no explanation.`;
+
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-browser': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 800,
+      messages: [{
+        role: 'user',
+        content: [
+          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
+          { type: 'text', text: prompt },
+        ],
+      }],
+    }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API error ${res.status}`);
+  }
+
+  const data = await res.json();
+  const text = data.content[0]?.text || '';
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('Claude could not parse scan data from this image');
+
+  setStatus('loading', 'Parsing values…', 95);
+  return JSON.parse(m[0]);
+}
+
+// ── File → text extraction (PDF / Tesseract fallback) ──────────────────────
 
 async function loadPdfJsForScan() {
   if (window.pdfjsLib) return window.pdfjsLib;
@@ -443,12 +524,36 @@ function setupBodyScanEvents(container) {
     if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.textContent = '⏳ Reading…'; }
 
     try {
-      const rawText = await extractScanText(file, setStatus);
-      const parsed  = parseInBodyText(rawText);
-      const date    = extractDateFromText(rawText);
-
       const allFields = [...SCAN_FIELDS, ...SEG_FIELDS];
-      const detected  = allFields.filter(f => parsed[f.id] != null).length;
+      const name = file.name.toLowerCase();
+      const isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
+      const isImage = !isPdf;
+
+      let parsed, date;
+
+      if (isImage) {
+        // Try Claude vision first (much more accurate for InBody layouts)
+        const apiKey = await getApiKey();
+        if (apiKey) {
+          const result = await extractWithClaudeVision(file, apiKey, setStatus);
+          date   = result.date && result.date !== 'null' ? result.date : null;
+          parsed = result;
+        } else {
+          // No API key — fall back to Tesseract OCR
+          setStatus('loading', 'No API key set — using OCR (less accurate). Add your Anthropic key in Settings for best results.', 5);
+          await new Promise(r => setTimeout(r, 1800));
+          const rawText = await extractScanText(file, setStatus);
+          parsed = parseInBodyText(rawText);
+          date   = extractDateFromText(rawText);
+        }
+      } else {
+        // PDF — use pdf.js text extraction
+        const rawText = await extractScanText(file, setStatus);
+        parsed = parseInBodyText(rawText);
+        date   = extractDateFromText(rawText);
+      }
+
+      const detected = allFields.filter(f => parsed[f.id] != null).length;
 
       if (detected === 0) {
         setStatus('warn', 'No InBody values detected — make sure the file is a clear InBody printout (PDF or photo).');

@@ -706,6 +706,30 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 }
 .circuit-round-btn.is-done { background: #ff9a0018; border-color: #ff9a0066; color: #ffb84d; font-weight: 600; }
 
+/* ── Strength Progression ── */
+.strength-pr-row { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: .65rem; }
+.pr-chip { font-size: .8rem; padding: .3rem .65rem; border-radius: 20px; background: var(--bg3); border: 1px solid var(--border); color: var(--muted); }
+.pr-chip.pos { border-color: #ffd16644; color: var(--accent2); background: #ffd16610; }
+.pr-chip.neg { border-color: #ff6b6b44; color: var(--danger); background: #ff6b6b10; }
+
+/* ── Session History ── */
+.hist-month-group { margin-bottom: 1.25rem; }
+.hist-month-label { font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin-bottom: .5rem; display: flex; align-items: center; gap: .5rem; }
+.hist-month-count { font-weight: 400; font-size: .72rem; color: var(--border); text-transform: none; letter-spacing: 0; }
+.hist-entry { background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: .65rem .75rem; margin-bottom: .45rem; }
+.hist-entry-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: .4rem; }
+.hist-date { font-size: .88rem; font-weight: 700; color: var(--text); margin-right: .5rem; }
+.hist-prog-badge { font-size: .72rem; color: var(--accent); background: #ff8c4218; border: 1px solid #ff8c4233; border-radius: 20px; padding: .1rem .5rem; }
+.hist-toggle { background: none; border: none; color: var(--muted); cursor: pointer; font-size: .85rem; padding: 0 .25rem; line-height: 1; }
+.hist-ex-tags { display: flex; flex-wrap: wrap; gap: .3rem; }
+.hist-ex-tag { font-size: .78rem; color: var(--muted); background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; padding: .15rem .45rem; }
+.hist-ex-tag.run-tag { border-color: #ffd16633; color: var(--accent2); background: #ffd16610; }
+.hist-detail { margin-top: .65rem; border-top: 1px solid var(--border); padding-top: .6rem; display: flex; flex-direction: column; gap: .5rem; }
+.hist-ex-row { display: flex; flex-direction: column; gap: .3rem; }
+.hist-ex-name { font-size: .82rem; font-weight: 600; color: var(--text); }
+.hist-sets { display: flex; flex-wrap: wrap; gap: .3rem; }
+.hist-set-chip { font-size: .78rem; padding: .2rem .5rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
+
 /* Mobility ref block */
 .mobility-ref-block { display: flex; flex-direction: column; gap: .35rem; }
 .mobility-label { font-size: .9rem; font-weight: 600; color: var(--text); }

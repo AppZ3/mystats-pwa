@@ -534,6 +534,7 @@ function setupTodayEvents(container) {
   container.querySelector('#apply-session')?.addEventListener('click', async () => {
     if (pendingProg !== null) await setCurrentProgramme(pendingProg);
     if (pendingWeek !== null) await setCurrentWeek(pendingWeek);
+    if (pendingDay !== null) selectedDay = pendingDay;
     pendingProg = null;
     pendingWeek = null;
     pendingDay = null;

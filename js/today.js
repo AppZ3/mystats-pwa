@@ -109,11 +109,11 @@ function collectBlockLog(container) {
     const name = el.dataset.ex;
     if (!name) return;
     const sets = [];
-    el.querySelectorAll('.str-set-row').forEach(row => {
+    el.querySelectorAll('.str-set-tile').forEach(tile => {
       sets.push({
-        weight: parseFloat(row.querySelector('.weight-in')?.value) || null,
-        reps:   row.querySelector('.reps-in')?.value?.trim() || null,
-        note:   row.querySelector('.note-in')?.value || '',
+        weight: parseFloat(tile.querySelector('.weight-in')?.value) || null,
+        reps:   tile.querySelector('.reps-in')?.value?.trim() || null,
+        note:   '',
       });
     });
     const hold  = el.querySelector('.skill-hold-in')?.value || '';
@@ -188,19 +188,17 @@ function renderSkillBlock(block) {
 
 function renderStrengthBlock(block) {
   const label = block.label || 'Strength';
-  const exercises = block.exercises || [];
   return `
     <div class="session-block strength-block">
       <div class="block-type-tag type-strength">${esc(label)}</div>
-      ${exercises.map(ex => {
-        const log = blockLog[ex.name] || {};
-        const existingSets = log.sets || [];
-        const targetSets = ex.sets || 3;
-        // Build set rows: fill from logged data, pad to target count
-        const rows = [];
-        for (let i = 0; i < Math.max(targetSets, existingSets.length); i++) {
-          const s = existingSets[i] || {};
-          rows.push({ weight: s.weight ?? '', reps: s.reps ?? ex.reps ?? '', note: s.note ?? '' });
+      ${(block.exercises || []).map(ex => {
+        const log       = blockLog[ex.name] || {};
+        const existing  = log.sets || [];
+        const targetN   = ex.sets || 3;
+        const rows      = [];
+        for (let i = 0; i < Math.max(targetN, existing.length); i++) {
+          const s = existing[i] || {};
+          rows.push({ weight: s.weight ?? '', reps: s.reps ?? '', done: !!(s.weight || s.reps) });
         }
         return `
           <div class="str-exercise" data-ex="${esc(ex.name)}">
@@ -209,14 +207,19 @@ function renderStrengthBlock(block) {
               <span class="str-ex-target">${ex.sets} × ${esc(ex.reps)}</span>
             </div>
             ${ex.note ? `<div class="str-ex-note">${esc(ex.note)}</div>` : ''}
-            <div class="str-sets">
+            <div class="str-tiles">
               ${rows.map((s, i) => `
-                <div class="str-set-row">
-                  <span class="set-lbl">S${i + 1}</span>
-                  <input type="number" class="set-input weight-in" placeholder="kg" value="${esc(String(s.weight))}" step="0.5" min="0">
-                  <span class="set-sep">×</span>
-                  <input type="text" class="set-input reps-in" placeholder="${esc(ex.reps)}" value="${esc(String(s.reps))}">
-                  <input type="text" class="set-input note-in" placeholder="note" value="${esc(s.note)}">
+                <div class="str-set-tile ${s.done ? 'is-done' : ''}">
+                  <span class="str-snum">S${i + 1}</span>
+                  <input type="number" class="str-tile-inp weight-in" inputmode="decimal"
+                    placeholder="kg" value="${esc(String(s.weight))}" step="0.5" min="0">
+                  <span class="str-tile-sep">×</span>
+                  <input type="text" class="str-tile-inp reps-in"
+                    placeholder="${esc(ex.reps)}" value="${esc(String(s.reps))}">
+                  <button class="str-tick-btn ${s.done ? 'is-done' : ''}"
+                    data-ex="${esc(ex.name)}" data-idx="${i}" data-done="${s.done ? '1' : '0'}">
+                    ${s.done ? '✓' : ''}
+                  </button>
                 </div>`).join('')}
             </div>
             <button class="btn-add-set str-add-set" data-ex="${esc(ex.name)}">+ Set</button>
@@ -549,6 +552,53 @@ function setupTodayEvents(container) {
   });
 
   container.onclick = e => {
+    // Strength tile tick
+    const tickBtn = e.target.closest('.str-tick-btn');
+    if (tickBtn) {
+      const tile   = tickBtn.closest('.str-set-tile');
+      const exEl   = tile.closest('.str-exercise');
+      const exName = exEl?.dataset.ex;
+      const idx    = parseInt(tickBtn.dataset.idx);
+      const wIn    = tile.querySelector('.weight-in');
+      const rIn    = tile.querySelector('.reps-in');
+      const isDone = tickBtn.dataset.done === '1';
+
+      if (!isDone) {
+        // Auto-fill from previous tile if both inputs are empty
+        if (!wIn.value && !rIn.value) {
+          const prev = tile.previousElementSibling;
+          if (prev?.classList.contains('str-set-tile')) {
+            wIn.value = prev.querySelector('.weight-in')?.value || '';
+            rIn.value = prev.querySelector('.reps-in')?.value  || '';
+          }
+        }
+        // Write to blockLog immediately so progress bar updates
+        if (exName) {
+          if (!blockLog[exName]) blockLog[exName] = { sets: [], hold: '', level: '' };
+          blockLog[exName].sets[idx] = {
+            weight: parseFloat(wIn.value) || null,
+            reps:   rIn.value.trim() || null,
+            note:   '',
+          };
+        }
+        tile.classList.add('is-done');
+        tickBtn.classList.add('is-done');
+        tickBtn.dataset.done = '1';
+        tickBtn.textContent  = '✓';
+      } else {
+        // Un-tick
+        if (exName && blockLog[exName]?.sets?.[idx]) {
+          blockLog[exName].sets[idx] = { weight: null, reps: null, note: '' };
+        }
+        tile.classList.remove('is-done');
+        tickBtn.classList.remove('is-done');
+        tickBtn.dataset.done = '0';
+        tickBtn.textContent  = '';
+      }
+      refreshProgress(container);
+      return;
+    }
+
     // Warmup done toggle
     const warmupBtn = e.target.closest('.warmup-done-btn');
     if (warmupBtn) {

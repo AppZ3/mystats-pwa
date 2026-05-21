@@ -128,10 +128,60 @@ export const ALL_EXERCISES = [
 ];
 
 export const MOBILITY_SESSIONS = [
-  { day: 'Monday', label: 'Upper Body + Wrist Rehab', duration: '40-50 min', focus: 'Shoulders, thoracic, wrist CARs, wrist rehab' },
-  { day: 'Tuesday', label: 'Hips + Front Splits', duration: '45-55 min', focus: 'Hips, hip flexors, hamstrings, front splits' },
-  { day: 'Thursday', label: 'Full Body Deep Stretch', duration: '60-70 min', focus: 'Middle splits, adductors, full body' },
-  { day: 'Saturday', label: 'Active Flexibility', duration: '40-50 min', focus: 'Adductors, active flexibility, integration' },
+  {
+    day: 'Monday', label: 'Upper Body + Wrist Rehab', duration: '40-50 min',
+    focus: 'Shoulders, thoracic, wrist CARs, wrist rehab',
+    items: [
+      'Wrist CARs — 3 × 30 sec each direction',
+      'Wrist extension stretch (back of hand on floor) — 3 × 30 sec',
+      'Prayer stretch (palms together, elbows out) — 3 × 30 sec',
+      'Shoulder CARs — 3 × 1 full rotation each side',
+      'Thoracic rotation (quadruped) — 10 reps each side',
+      'Thoracic extension over foam roller — 2 min',
+      'Band shoulder dislocates — 30 reps',
+      'Doorway chest opener — 3 × 30 sec',
+      'Overhead reach stretch — 10 reps',
+    ],
+  },
+  {
+    day: 'Tuesday', label: 'Hips + Front Splits', duration: '45-55 min',
+    focus: 'Hips, hip flexors, hamstrings, front splits',
+    items: [
+      'Hip CARs — 3 × 1 full rotation each side',
+      'Hip flexor lunge stretch — 3 × 45 sec each side',
+      'Couch stretch — 3 × 45 sec each side',
+      'Pigeon pose — 3 × 60 sec each side',
+      'Standing hamstring stretch — 3 × 30 sec each side',
+      'Half front splits — 3 × 45 sec each side',
+      'Full front splits (max range) — 3 × 60 sec each side',
+    ],
+  },
+  {
+    day: 'Thursday', label: 'Full Body Deep Stretch', duration: '60-70 min',
+    focus: 'Middle splits, adductors, full body',
+    items: [
+      'Seated wide-leg forward fold — 3 × 60 sec',
+      'Adductor side lunge — 3 × 45 sec each side',
+      'Frog pose — 3 × 60 sec',
+      'Middle splits progression — 3 × 60 sec',
+      'Hip flexor stretch — 3 × 45 sec each side',
+      'Pigeon pose — 3 × 60 sec each side',
+      'Thoracic rotation (quadruped) — 10 reps each side',
+      'Doorway chest opener — 3 × 30 sec',
+    ],
+  },
+  {
+    day: 'Saturday', label: 'Active Flexibility', duration: '40-50 min',
+    focus: 'Adductors, active flexibility, integration',
+    items: [
+      'Active front leg raises — 3 × 10 each side',
+      'Active side leg raises — 3 × 10 each side',
+      'Active pigeon lift — 3 × 10 reps each side',
+      'Horse stance adductor slides — 3 × 10 reps',
+      'Active split lowering — 3 × 5 reps each side',
+      'Integration flow — 5 min full body',
+    ],
+  },
 ];
 
 // Block-structured sessions from the programme documents

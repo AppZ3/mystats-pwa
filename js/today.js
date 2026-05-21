@@ -288,14 +288,22 @@ function renderCircuitBlock(block) {
 }
 
 function renderMobilityBlock(block) {
+  const hasItems = block.items && block.items.length > 0;
   return `
-    <div class="session-block mobility-ref-block">
-      <div class="block-header-row">
-        <span class="block-type-tag type-mobility">Mobility</span>
-        ${block.duration ? `<span class="block-note">${esc(block.duration)}</span>` : ''}
+    <div class="session-block mobility-ref-block ${hasItems ? 'is-expandable' : ''}">
+      <div class="mobility-header ${hasItems ? 'mobility-toggle' : ''}">
+        <div class="block-header-row" style="margin-bottom:.25rem;">
+          <span class="block-type-tag type-mobility">Mobility</span>
+          ${block.duration ? `<span class="block-note">${esc(block.duration)}</span>` : ''}
+          ${hasItems ? `<span class="mobility-chevron">▾</span>` : ''}
+        </div>
+        <div class="mobility-label">${esc(block.label)}</div>
+        ${block.focus ? `<div class="mobility-focus muted">${esc(block.focus)}</div>` : ''}
       </div>
-      <div class="mobility-label">${esc(block.label)}</div>
-      ${block.focus ? `<div class="mobility-focus muted">${esc(block.focus)}</div>` : ''}
+      ${hasItems ? `
+        <ul class="mobility-items hidden">
+          ${block.items.map(item => `<li>${esc(item)}</li>`).join('')}
+        </ul>` : ''}
     </div>`;
 }
 
@@ -545,6 +553,19 @@ function setupTodayEvents(container) {
   });
 
   container.onclick = e => {
+    // Mobility expand/collapse
+    const mobilityToggle = e.target.closest('.mobility-toggle');
+    if (mobilityToggle) {
+      const block = mobilityToggle.closest('.mobility-ref-block');
+      const items = block?.querySelector('.mobility-items');
+      const chevron = block?.querySelector('.mobility-chevron');
+      if (items) {
+        items.classList.toggle('hidden');
+        if (chevron) chevron.textContent = items.classList.contains('hidden') ? '▾' : '▴';
+      }
+      return;
+    }
+
     // Strength tile tick
     const tickBtn = e.target.closest('.str-tick-btn');
     if (tickBtn) {

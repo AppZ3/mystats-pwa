@@ -710,6 +710,10 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 .mobility-ref-block { display: flex; flex-direction: column; gap: .35rem; }
 .mobility-label { font-size: .9rem; font-weight: 600; color: var(--text); }
 .mobility-focus { font-size: .8rem; margin-top: .1rem; }
+.mobility-ref-block.is-expandable .mobility-toggle { cursor: pointer; }
+.mobility-chevron { margin-left: auto; font-size: .75rem; color: var(--accent); }
+.mobility-items { margin-top: .6rem; padding-left: 1.1rem; display: flex; flex-direction: column; gap: .4rem; }
+.mobility-items li { font-size: .85rem; color: var(--text); }
 
 @media (max-width: 400px) {
   .str-set-row .note-in { display: none; }

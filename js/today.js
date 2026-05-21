@@ -364,6 +364,7 @@ function renderSessionPanel(session, isRest, progress, mobility) {
           ${todayWorkoutId ? '✓ Update Session' : 'Save Session'}
         </button>
       `}
+    </div>
   `;
 }
 

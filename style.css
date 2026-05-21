@@ -753,6 +753,12 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 .scan-upload-result.warn    { background: #ffd70010; border-color: #ffd70044; color: var(--warn); }
 .scan-upload-result.error   { background: #ff6b6b10; border-color: #ff6b6b44; color: var(--danger); }
 
+/* Scan form upload row */
+.scan-upload-row { margin-bottom: .5rem; }
+.scan-form-divider { display: flex; align-items: center; gap: .75rem; margin: .9rem 0 .75rem; }
+.scan-form-divider::before, .scan-form-divider::after { content: ''; flex: 1; height: 1px; background: var(--border); }
+.scan-form-divider span { font-size: .75rem; color: var(--muted); white-space: nowrap; }
+
 /* API key saved badge */
 .api-key-saved-badge {
   display: inline-flex; align-items: center; gap: .4rem;

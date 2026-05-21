@@ -3,19 +3,48 @@ import { dbAdd, dbPut, dbGet, dbGetAll, dbDelete } from './db.js';
 
 let editingScan = null;
 
+// ── Image compression ─────────────────────────────────────────────────────
+
+async function compressImageForVision(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      // Resize to max 1600px on longest side — enough for Claude to read all text
+      const MAX = 1600;
+      let { width, height } = img;
+      if (width > MAX || height > MAX) {
+        if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
+        else { width = Math.round(width * MAX / height); height = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Image compression failed')), 'image/jpeg', 0.88);
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
+    img.src = url;
+  });
+}
+
 // ── Claude vision extraction (images) ─────────────────────────────────────
 
 async function extractWithClaudeVision(file, apiKey, setStatus) {
-  setStatus('loading', 'Reading image…', 10);
+  setStatus('loading', 'Compressing image…', 10);
 
+  // Compress to keep request small and fast
+  const compressed = await compressImageForVision(file);
+
+  setStatus('loading', 'Reading image…', 25);
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result.split(',')[1]);
     reader.onerror = reject;
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(compressed);
   });
 
-  const mediaType = file.type && file.type.startsWith('image/') ? file.type : 'image/jpeg';
+  const mediaType = 'image/jpeg'; // always JPEG after compression
 
   setStatus('loading', 'Analysing scan with Claude…', 40);
 
@@ -248,12 +277,11 @@ export async function renderBodyScan(container) {
   const prev = scans.length > 1 ? scans[scans.length - 2] : null;
   const es = editingScan;
 
-  const [apiKeyRecord, insightsRecord, progRecord] = await Promise.all([
-    dbGet('settings', 'anthropic_api_key'),
+  const [insightsRecord, progRecord] = await Promise.all([
     dbGet('settings', 'scan_insights'),
     dbGet('settings', 'programme'),
   ]);
-  const hasApiKey = !!(apiKeyRecord?.value);
+  const hasApiKey = !!(localStorage.getItem('anthropic_api_key'));
   const storedInsights = insightsRecord?.value;
   const programme = progRecord?.value ?? 'A';
 
@@ -262,13 +290,8 @@ export async function renderBodyScan(container) {
   container.innerHTML = `
     <div class="section-header">
       <h2>Body Scans</h2>
-      <div style="display:flex;gap:.4rem">
-        <button class="btn-secondary btn-sm" id="upload-scan-btn">📄 From File</button>
-        <button class="btn-primary btn-sm" id="add-scan-btn">${es ? '✕ Cancel' : '+ Add Scan'}</button>
-      </div>
+      <button class="btn-primary btn-sm" id="add-scan-btn">${es ? '✕ Cancel' : '+ Add Scan'}</button>
     </div>
-    <input type="file" id="scan-file-input" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic" style="display:none">
-    <div id="scan-upload-status" style="font-size:.85rem;padding:.1rem 0;min-height:1.2rem"></div>
 
     ${latest && !es ? renderLatestCard(latest, prev) : ''}
     ${latest && !es ? renderTargetsCard(latest) : ''}
@@ -280,8 +303,18 @@ export async function renderBodyScan(container) {
     <div class="card" id="scan-form-card" style="${es ? '' : 'display:none'}">
       ${es ? `<div class="editing-banner">✏️ Editing scan from ${formatDate(es.date)} <button id="cancel-scan-edit" class="btn-cancel">Cancel</button></div>` : ''}
       <div class="card-label">${es ? 'Edit Scan' : 'New InBody Scan'}</div>
+      ${!es ? `
+        <div class="scan-upload-row">
+          <input type="file" id="scan-file-input" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none">
+          <button class="btn-secondary" id="upload-scan-btn" style="width:100%">
+            📄 Upload from file ${hasApiKey ? '(Claude AI reads it)' : '(OCR)'}
+          </button>
+        </div>
+        <div id="scan-upload-status"></div>
+        <div class="scan-form-divider"><span>or enter manually</span></div>
+      ` : ''}
       ${renderScanForm(es)}
-      <button id="save-scan" class="btn-primary">${es ? 'Update Scan' : 'Save Scan'}</button>
+      <button id="save-scan" class="btn-primary" style="margin-top:.5rem">${es ? 'Update Scan' : 'Save Scan'}</button>
     </div>
 
     <div class="card">
@@ -580,7 +613,11 @@ function setupBodyScanEvents(container) {
     } catch (err) {
       setStatus('error', err.message);
     } finally {
-      if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = '📄 From File'; }
+      const hasKey = !!localStorage.getItem('anthropic_api_key');
+      if (uploadBtn) {
+        uploadBtn.disabled = false;
+        uploadBtn.textContent = `📄 Upload from file ${hasKey ? '(Claude AI reads it)' : '(OCR)'}`;
+      }
     }
   });
 
@@ -594,9 +631,9 @@ function setupBodyScanEvents(container) {
     formEl.style.display = isShowing ? 'none' : 'block';
     addBtn.textContent = isShowing ? '+ Add Scan' : '✕ Cancel';
     if (isShowing) {
-      // Clear all form fields when cancelling
       container.querySelectorAll('#scan-form-card input').forEach(el => { el.value = ''; });
-      container.querySelector('#scan-upload-status').textContent = '';
+      const statusEl = container.querySelector('#scan-upload-status');
+      if (statusEl) statusEl.innerHTML = '';
     }
   });
 

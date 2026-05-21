@@ -660,6 +660,9 @@ function setupBodyScanEvents(container) {
 // ── AI Insights engine ─────────────────────────────────────────────────────
 
 async function getApiKey() {
+  // localStorage is primary (instant, reliable); IndexedDB is fallback
+  const local = localStorage.getItem('anthropic_api_key');
+  if (local) return local;
   const s = await dbGet('settings', 'anthropic_api_key');
   return s?.value || null;
 }

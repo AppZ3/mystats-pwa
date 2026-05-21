@@ -48,7 +48,8 @@ export async function renderSettings(container) {
     getProgrammeMeta('A'), getProgrammeMeta('B'),
     dbGet('settings', 'anthropic_api_key'),
   ]);
-  const savedApiKey = apiKeyRecord?.value || '';
+  // Prefer localStorage (more reliable) — fall back to IndexedDB
+  const savedApiKey = localStorage.getItem('anthropic_api_key') || apiKeyRecord?.value || '';
 
   container.innerHTML = `
     <div class="section-header">
@@ -357,24 +358,25 @@ function renderProgrammeUpload(metaA, metaB) {
 }
 
 function renderAiInsights(apiKey) {
-  const masked = apiKey ? apiKey.slice(0, 7) + '···' + apiKey.slice(-4) : '';
+  const masked = apiKey ? apiKey.slice(0, 8) + '···' + apiKey.slice(-4) : '';
   return `
     <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">
-      After each InBody scan, the app calls Claude to analyse your results and generate personalised programme adjustments for the next 30 days. Your key is stored only on this device.
+      After each InBody scan, Claude analyses your results and generates personalised programme adjustments for the next 30 days. Your key is stored only on this device.
     </p>
-    <div class="form-group">
-      <label>Anthropic API Key</label>
-      <div style="display:flex;gap:.4rem">
-        <input type="password" id="ai-api-key" class="input-field" placeholder="sk-ant-…"
-          value="${apiKey || ''}" autocomplete="off" style="flex:1;font-family:monospace">
-        ${masked ? `<span class="muted" style="align-self:center;font-size:.78rem;font-family:monospace">${masked}</span>` : ''}
+    ${apiKey ? `<div class="api-key-saved-badge">✓ API key saved &nbsp;<span style="font-family:monospace;opacity:.7">${masked}</span></div>` : ''}
+    <div class="form-group" style="margin-top:${apiKey ? '.6rem' : '0'}">
+      <label>${apiKey ? 'Replace API Key' : 'Anthropic API Key'}</label>
+      <div style="display:flex;gap:.4rem;align-items:center">
+        <input type="text" id="ai-api-key" class="input-field" placeholder="sk-ant-…"
+          autocomplete="off" spellcheck="false" style="flex:1;font-family:monospace;letter-spacing:.03em">
+        <button type="button" id="toggle-key-vis" class="btn-secondary btn-sm" style="flex-shrink:0">Show</button>
       </div>
       <small class="muted" style="font-size:.72rem;margin-top:.25rem;display:block">
-        Get your key at console.anthropic.com · Haiku model · &lt;$0.01 per analysis
+        Get your key at <strong>console.anthropic.com</strong> · Haiku · &lt;$0.01 per analysis
       </small>
     </div>
     <div style="display:flex;gap:.5rem;margin-top:.6rem">
-      <button class="btn-primary" id="save-api-key" style="flex:1">Save API Key</button>
+      <button class="btn-primary" id="save-api-key" style="flex:1">Save Key</button>
       ${apiKey ? '<button class="btn-danger btn-sm" id="clear-api-key">Clear</button>' : ''}
     </div>
     <div id="api-key-status" style="font-size:.82rem;margin-top:.35rem;min-height:1rem"></div>`;
@@ -472,16 +474,51 @@ function setupProfileEvents(container) {
 function setupAiInsightsEvents(container) {
   const statusEl = () => container.querySelector('#api-key-status');
 
+  // Show/hide toggle for key input
+  container.querySelector('#toggle-key-vis')?.addEventListener('click', () => {
+    const inp = container.querySelector('#ai-api-key');
+    const btn = container.querySelector('#toggle-key-vis');
+    if (!inp) return;
+    const isHidden = inp.dataset.hidden !== 'false';
+    inp.dataset.hidden = isHidden ? 'false' : 'true';
+    inp.style.webkitTextSecurity = isHidden ? 'none' : 'disc';
+    inp.style.textSecurity = isHidden ? 'none' : 'disc';
+    btn.textContent = isHidden ? 'Hide' : 'Show';
+  });
+
+  // Start with key hidden (disc mask via CSS trick)
+  const inp = container.querySelector('#ai-api-key');
+  if (inp) {
+    inp.dataset.hidden = 'true';
+    inp.style.webkitTextSecurity = 'disc';
+    inp.style.textSecurity = 'disc';
+  }
+
   container.querySelector('#save-api-key')?.addEventListener('click', async () => {
     const key = container.querySelector('#ai-api-key')?.value?.trim();
-    if (!key) { if (statusEl()) { statusEl().textContent = 'Enter an API key first'; statusEl().style.color = 'var(--danger)'; } return; }
-    await dbPut('settings', { key: 'anthropic_api_key', value: key });
-    if (statusEl()) { statusEl().textContent = '✓ API key saved'; statusEl().style.color = 'var(--success)'; }
-    showToast('API key saved');
-    setTimeout(() => renderSettings(container), 800);
+    if (!key) {
+      if (statusEl()) { statusEl().textContent = 'Paste your API key first'; statusEl().style.color = 'var(--danger)'; }
+      return;
+    }
+    if (!key.startsWith('sk-ant-')) {
+      if (statusEl()) { statusEl().textContent = 'Key should start with sk-ant-'; statusEl().style.color = 'var(--warn)'; }
+    }
+    try {
+      // Save to localStorage (primary) and IndexedDB (backup)
+      localStorage.setItem('anthropic_api_key', key);
+      await dbPut('settings', { key: 'anthropic_api_key', value: key });
+      // Verify it stuck
+      const check = localStorage.getItem('anthropic_api_key');
+      if (!check) throw new Error('localStorage write failed');
+      showToast('API key saved');
+      renderSettings(container);
+    } catch (err) {
+      if (statusEl()) { statusEl().textContent = '✕ Save failed: ' + err.message; statusEl().style.color = 'var(--danger)'; }
+    }
   });
 
   container.querySelector('#clear-api-key')?.addEventListener('click', async () => {
+    localStorage.removeItem('anthropic_api_key');
     await dbPut('settings', { key: 'anthropic_api_key', value: '' });
     showToast('API key cleared');
     renderSettings(container);

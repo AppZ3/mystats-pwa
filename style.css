@@ -730,6 +730,29 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 .hist-sets { display: flex; flex-wrap: wrap; gap: .3rem; }
 .hist-set-chip { font-size: .78rem; padding: .2rem .5rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 4px; color: var(--muted); }
 
+/* ── Scan upload progress ── */
+.scan-upload-progress {
+  display: flex; flex-direction: column; gap: .45rem;
+  background: var(--bg3); border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .75rem 1rem; margin: .5rem 0;
+}
+.scan-upload-progress > div:first-child { display: flex; align-items: center; gap: .6rem; }
+.scan-upload-spinner {
+  width: 16px; height: 16px; border: 2px solid var(--border);
+  border-top-color: var(--accent); border-radius: 50%;
+  animation: spin .7s linear infinite; flex-shrink: 0;
+}
+.scan-upload-msg { font-size: .88rem; color: var(--text); }
+.scan-upload-bar-wrap { height: 4px; background: var(--bg2); border-radius: 4px; overflow: hidden; }
+.scan-upload-bar { height: 100%; background: linear-gradient(90deg, var(--accent), var(--accent2)); border-radius: 4px; transition: width .3s ease; }
+.scan-upload-result {
+  font-size: .88rem; padding: .6rem .9rem; border-radius: var(--radius-sm);
+  border: 1px solid var(--border); margin: .5rem 0;
+}
+.scan-upload-result.success { background: #ffd16610; border-color: #ffd16644; color: var(--accent2); }
+.scan-upload-result.warn    { background: #ffd70010; border-color: #ffd70044; color: var(--warn); }
+.scan-upload-result.error   { background: #ff6b6b10; border-color: #ff6b6b44; color: var(--danger); }
+
 /* Mobility ref block */
 .mobility-ref-block { display: flex; flex-direction: column; gap: .35rem; }
 .mobility-label { font-size: .9rem; font-weight: 600; color: var(--text); }

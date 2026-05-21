@@ -35,7 +35,7 @@ async function extractScanText(file, setStatus) {
   const name = file.name.toLowerCase();
 
   if (name.endsWith('.heic') || name.endsWith('.heif')) {
-    throw new Error('HEIC/HEIF images are not supported — please export as JPEG or PNG from Photos and try again');
+    throw new Error('HEIC/HEIF images are not supported — export as JPEG or PNG from Photos and try again');
   }
 
   if (file.size > 30 * 1024 * 1024) {
@@ -45,12 +45,14 @@ async function extractScanText(file, setStatus) {
   const isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
 
   if (isPdf) {
-    setStatus('Reading PDF…');
+    setStatus('loading', 'Loading PDF reader…', 0);
     const pdfjsLib = await loadPdfJsForScan();
     const data = await file.arrayBuffer();
+    setStatus('loading', 'Reading PDF…', 30);
     const pdf = await pdfjsLib.getDocument({ data }).promise;
     const pages = [];
     for (let p = 1; p <= pdf.numPages; p++) {
+      setStatus('loading', `Reading page ${p} of ${pdf.numPages}…`, 30 + Math.round((p / pdf.numPages) * 65));
       const page = await pdf.getPage(p);
       const content = await page.getTextContent();
       const byY = {};
@@ -63,13 +65,26 @@ async function extractScanText(file, setStatus) {
         .filter(Boolean);
       pages.push(lines.join('\n'));
     }
+    setStatus('loading', 'Parsing values…', 95);
     return pages.join('\n');
   }
 
-  // Image — OCR
-  setStatus('Running OCR… this can take 15–30 seconds on first use');
+  // Image — OCR via Tesseract
+  setStatus('loading', 'Loading OCR engine… (first use ~10 sec)', 5);
   const Tesseract = await loadTesseract();
-  const { data: { text } } = await Tesseract.recognize(file, 'eng');
+  setStatus('loading', 'Starting OCR…', 15);
+  const { data: { text } } = await Tesseract.recognize(file, 'eng', {
+    logger: m => {
+      if (m.status === 'recognizing text') {
+        setStatus('loading', `Reading text… ${Math.round(m.progress * 100)}%`, 15 + Math.round(m.progress * 80));
+      } else if (m.status === 'loading tesseract core') {
+        setStatus('loading', 'Loading OCR engine…', 5);
+      } else if (m.status === 'initializing tesseract') {
+        setStatus('loading', 'Initialising OCR…', 10);
+      }
+    },
+  });
+  setStatus('loading', 'Parsing values…', 97);
   return text;
 }
 
@@ -401,21 +416,42 @@ function setupBodyScanEvents(container) {
     e.target.value = '';
 
     const statusEl = container.querySelector('#scan-upload-status');
-    const setStatus = (msg, color = 'var(--muted)') => {
-      statusEl.textContent = msg; statusEl.style.color = color;
+
+    const setStatus = (type, msg, pct = 0) => {
+      if (type === 'loading') {
+        statusEl.innerHTML = `
+          <div class="scan-upload-progress">
+            <div style="display:flex;align-items:center;gap:.6rem;">
+              <div class="scan-upload-spinner"></div>
+              <span class="scan-upload-msg">${msg}</span>
+            </div>
+            <div class="scan-upload-bar-wrap">
+              <div class="scan-upload-bar" style="width:${pct}%"></div>
+            </div>
+          </div>`;
+      } else if (type === 'success') {
+        statusEl.innerHTML = `<div class="scan-upload-result success">✓ ${msg}</div>`;
+      } else if (type === 'warn') {
+        statusEl.innerHTML = `<div class="scan-upload-result warn">⚠ ${msg}</div>`;
+      } else if (type === 'error') {
+        statusEl.innerHTML = `<div class="scan-upload-result error">✕ ${msg}</div>`;
+      }
     };
+
+    // Disable upload button while processing
+    const uploadBtn = container.querySelector('#upload-scan-btn');
+    if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.textContent = '⏳ Reading…'; }
 
     try {
       const rawText = await extractScanText(file, setStatus);
       const parsed  = parseInBodyText(rawText);
       const date    = extractDateFromText(rawText);
 
-      // Count detected fields
       const allFields = [...SCAN_FIELDS, ...SEG_FIELDS];
       const detected  = allFields.filter(f => parsed[f.id] != null).length;
 
       if (detected === 0) {
-        setStatus('⚠ No InBody values detected — make sure the file is a clear InBody printout.', 'var(--warning, #ffd700)');
+        setStatus('warn', 'No InBody values detected — make sure the file is a clear InBody printout (PDF or photo).');
         return;
       }
 
@@ -427,7 +463,6 @@ function setupBodyScanEvents(container) {
         const dateEl = container.querySelector('#scan-date');
         if (dateEl) dateEl.value = date;
       }
-
       allFields.forEach(f => {
         if (parsed[f.id] != null) {
           const el = container.querySelector(`#scan-${f.id}`);
@@ -435,10 +470,12 @@ function setupBodyScanEvents(container) {
         }
       });
 
-      setStatus(`✓ Detected ${detected} of ${allFields.length} fields — review below, then Save Scan.`, 'var(--success)');
+      setStatus('success', `Detected ${detected} of ${allFields.length} fields — review below and tap Save Scan.`);
       formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
-      setStatus('✕ ' + err.message, 'var(--danger)');
+      setStatus('error', err.message);
+    } finally {
+      if (uploadBtn) { uploadBtn.disabled = false; uploadBtn.textContent = '📄 From File'; }
     }
   });
 

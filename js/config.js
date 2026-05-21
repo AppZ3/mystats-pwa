@@ -1,6 +1,6 @@
 // Shared helpers: load user settings with profile.js defaults as fallback
 import { dbGet } from './db.js';
-import { MORNING_ROUTINE, SUPPLEMENTS, PROGRAMME_A, PROGRAMME_B, TARGETS, PROFILE, DEFAULT_CHECKLIST_ITEMS } from './profile.js';
+import { MORNING_ROUTINE, SUPPLEMENTS, PROGRAMME_A, PROGRAMME_B, PROG_A_SESSIONS, PROG_B_SESSIONS, TARGETS, PROFILE, DEFAULT_CHECKLIST_ITEMS } from './profile.js';
 
 export async function getChecklistItems() {
   const s = await dbGet('settings', 'checklist_items');
@@ -40,4 +40,9 @@ export async function getProgrammeTargets(prog) {
 export async function getProgrammeMeta(prog) {
   const s = await dbGet('settings', `programme_${prog.toLowerCase()}_meta`);
   return s?.value ?? null;
+}
+
+export function getProgrammeSession(prog, day) {
+  const sessions = prog === 'A' ? PROG_A_SESSIONS : PROG_B_SESSIONS;
+  return sessions[day] ?? { label: 'Rest', focus: 'Recovery', blocks: [] };
 }

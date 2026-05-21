@@ -134,6 +134,278 @@ export const MOBILITY_SESSIONS = [
   { day: 'Saturday', label: 'Active Flexibility', duration: '40-50 min', focus: 'Adductors, active flexibility, integration' },
 ];
 
+// Block-structured sessions from the programme documents
+// type: 'warmup' | 'skill' | 'strength' | 'core' | 'cardio' | 'circuit'
+export const PROG_A_SESSIONS = {
+  1: {
+    label: 'Push Skill + Horizontal Strength',
+    focus: 'Planche · Chest · Shoulders · Triceps',
+    blocks: [
+      { type: 'warmup', items: [
+        'Wrist circles & extensions on floor — 2 min',
+        'Band shoulder dislocates — 30 reps',
+        'Scapular push-ups — 15 reps',
+        'Pike push-up to downward dog flow — 10 reps',
+        'Hollow body hold — 3 × 20 sec',
+      ]},
+      { type: 'skill', name: 'Planche', note: 'Use fists/parallettes if wrist is painful', exercises: [
+        { name: 'Planche lean hold', sets: 5, target: '10s', note: 'Build to 30s before progressing' },
+        { name: 'Tuck planche hold', sets: 5, target: '8s' },
+        { name: 'Advanced tuck planche', sets: 5, target: '6s' },
+        { name: 'Straddle planche', sets: 5, target: '5s', note: 'When tuck is solid' },
+      ]},
+      { type: 'strength', exercises: [
+        { name: 'Weighted ring push-up', sets: 4, reps: '8', note: 'Add weight when 8 reps is easy' },
+        { name: 'Pike push-up (feet elevated)', sets: 3, reps: '10' },
+        { name: 'Dumbbell floor press', sets: 3, reps: '10' },
+        { name: 'Ring dip', sets: 3, reps: '8' },
+        { name: 'Overhead dumbbell press', sets: 3, reps: '10' },
+        { name: 'Tricep extension (cable or band)', sets: 3, reps: '12' },
+      ]},
+      { type: 'core', items: [
+        'Hollow body rock — 3 × 30 sec',
+        'Planche lean hold (parallettes) — 3 × 15 sec',
+        'L-sit hold — 3 × 10 sec',
+      ]},
+    ],
+  },
+  2: {
+    label: 'Endurance + Muscular Endurance',
+    focus: 'Zone 2 cardio · Full body circuit · Mobility',
+    blocks: [
+      { type: 'warmup', items: [
+        '5 min easy walk or light jog',
+        'Leg swings — 20 each side',
+        'Hip circles — 10 each side',
+        'High knees — 30 sec',
+      ]},
+      { type: 'cardio', label: 'Zone 2 Run', target: '35-40 min', bpmTarget: '130-145', note: 'Conversational pace — nose breathing if possible' },
+      { type: 'circuit', label: '3 rounds — rest 90 sec between rounds', exercises: [
+        { name: 'Pull-up', reps: '8' },
+        { name: 'Dip', reps: '8' },
+        { name: 'Push-up', reps: '12' },
+        { name: 'Air squat', reps: '15' },
+        { name: 'Hanging leg raise', reps: '8' },
+      ]},
+      { type: 'mobility', label: 'Mobility Session 1 — Upper body, shoulders, thoracic, wrists (~45 min)' },
+    ],
+  },
+  3: {
+    label: 'Pull Skill + Vertical Strength',
+    focus: 'Front Lever · Muscle-Up · Back · Biceps',
+    blocks: [
+      { type: 'warmup', items: [
+        'Dead hang — 2 × 30 sec',
+        'Scapular pull-ups — 15 reps',
+        'Band pull-aparts — 30 reps',
+        'Cat-cow thoracic — 10 reps',
+        'Wrist CARs — 30 sec each',
+      ]},
+      { type: 'skill', name: 'Front Lever', exercises: [
+        { name: 'Tuck front lever hold', sets: 5, target: '8s' },
+        { name: 'Advanced tuck front lever', sets: 5, target: '6s' },
+        { name: 'One-leg front lever', sets: 5, target: '5s' },
+        { name: 'Full front lever', sets: 5, target: '3s', note: 'When tuck is solid' },
+      ]},
+      { type: 'skill', name: 'Muscle-Up', exercises: [
+        { name: 'Muscle-up negative', sets: 5, target: '3 reps' },
+        { name: 'Chest-to-bar pull-up', sets: 4, target: '5 reps' },
+        { name: 'False grip ring row', sets: 3, target: '8 reps' },
+      ]},
+      { type: 'strength', exercises: [
+        { name: 'Weighted pull-up', sets: 4, reps: '6', note: 'Strict form' },
+        { name: 'Barbell row', sets: 4, reps: '8' },
+        { name: 'Single-arm dumbbell row', sets: 3, reps: '10' },
+        { name: 'Face pull', sets: 3, reps: '15' },
+        { name: 'Hammer curl', sets: 3, reps: '10' },
+        { name: 'Dead hang', sets: 2, reps: '30s', note: 'Aim for 60s per set' },
+      ]},
+      { type: 'core', items: [
+        'L-sit hold (parallettes) — 3 × 15 sec',
+        'Hanging leg raise — 3 × 10 reps',
+        'Dragon flag negative — 3 × 5 reps',
+      ]},
+    ],
+  },
+  4: { label: 'Rest / Active Recovery', focus: 'Recovery', blocks: [] },
+  5: {
+    label: 'Legs + Posterior Chain',
+    focus: 'Legs · Glutes · Hamstrings · Core',
+    blocks: [
+      { type: 'warmup', items: [
+        'Hip CARs — 30 sec each',
+        'Deep squat hold — 60 sec',
+        'Glute bridge — 20 reps',
+        'Leg swings — 20 each side',
+        'Walking lunges — 2 × 10 each',
+      ]},
+      { type: 'strength', exercises: [
+        { name: 'Bulgarian split squat', sets: 4, reps: '8e', note: 'Each leg' },
+        { name: 'Romanian deadlift', sets: 4, reps: '8' },
+        { name: 'Single-leg press', sets: 3, reps: '10e' },
+        { name: 'Nordic curl', sets: 3, reps: '6' },
+        { name: 'Step-up', sets: 3, reps: '10e' },
+        { name: 'Calf raise', sets: 4, reps: '15e' },
+      ]},
+      { type: 'core', items: [
+        'Pallof press — 3 × 12 each side',
+        'Copenhagen plank — 3 × 20 sec each side',
+        'Tibialis raise — 3 × 15 reps',
+      ]},
+    ],
+  },
+  6: {
+    label: 'Power + Full Body Conditioning',
+    focus: 'Explosive power · Full body',
+    blocks: [
+      { type: 'warmup', items: [
+        'Jumping jacks — 30 sec',
+        'Hip flexor lunge — 30 sec each',
+        'Arm circles — 20 each',
+        'Box step-ups — 10 each',
+      ]},
+      { type: 'strength', label: 'Power Block', exercises: [
+        { name: 'Box jump', sets: 5, reps: '5', note: 'Full reset between reps' },
+        { name: 'Broad jump', sets: 4, reps: '4' },
+        { name: 'Explosive push-up', sets: 4, reps: '6' },
+      ]},
+      { type: 'cardio', label: 'Zone 2 Run (or repeat Tuesday circuit × 5)', target: '50-60 min', bpmTarget: '130-145' },
+    ],
+  },
+  0: { label: 'Full Rest', focus: 'Recovery', blocks: [] },
+};
+
+export const PROG_B_SESSIONS = {
+  1: {
+    label: 'Handstand + Overhead Strength',
+    focus: 'Handstand · Shoulders · Triceps',
+    blocks: [
+      { type: 'warmup', items: [
+        'Shoulder circles — 30 each direction',
+        'Wall shoulder stretch — 30 sec each',
+        'Pike push-up — 10 reps',
+        'Wrist CARs — 30 sec each',
+        'Thoracic rotation — 10 each side',
+      ]},
+      { type: 'skill', name: 'Handstand', exercises: [
+        { name: 'Forearm stand (Pincha)', sets: 5, target: '10s' },
+        { name: 'Wall handstand hold', sets: 5, target: '20s' },
+        { name: 'Freestanding handstand', sets: 5, target: '5s' },
+        { name: 'Wall HSPU', sets: 4, target: '5 reps' },
+      ]},
+      { type: 'strength', exercises: [
+        { name: 'Seated overhead press', sets: 4, reps: '8' },
+        { name: 'Arnold press', sets: 3, reps: '10' },
+        { name: 'Landmine press', sets: 3, reps: '10e' },
+        { name: 'Lateral raise', sets: 4, reps: '15' },
+        { name: 'Face pull', sets: 4, reps: '15' },
+        { name: 'Tricep extension', sets: 3, reps: '12' },
+      ]},
+      { type: 'core', items: [
+        'Hollow body hold — 4 × 25 sec',
+        'Arch hold — 3 × 20 sec',
+      ]},
+    ],
+  },
+  2: {
+    label: 'Tempo Run + Core Intensive',
+    focus: 'Lactate threshold · Deep core',
+    blocks: [
+      { type: 'warmup', items: [
+        '5 min easy jog',
+        'Strides × 4 (10 sec each)',
+        'Hip circles — 10 each side',
+      ]},
+      { type: 'cardio', label: 'Tempo Run', target: '20-25 min', bpmTarget: '150-165', note: 'Comfortably hard — 3-4 words at a time' },
+      { type: 'circuit', label: 'Core Circuit — 4 rounds, rest 60 sec between', exercises: [
+        { name: 'Ab wheel rollout', reps: '8' },
+        { name: 'Toes-to-bar', reps: '10' },
+        { name: 'Dragon flag negative', reps: '4' },
+        { name: 'Side plank', reps: '12 sec each' },
+        { name: 'V-up', reps: '12' },
+      ]},
+    ],
+  },
+  3: {
+    label: 'Bar Skills + Pulling Strength',
+    focus: 'Bar Muscle-Up · Back Lever · Back · Biceps',
+    blocks: [
+      { type: 'warmup', items: [
+        'Dead hang — 2 × 30 sec',
+        'Scapular pull-ups — 15 reps',
+        'German hang — 3 × 5 sec',
+        'Band pull-aparts — 30 reps',
+      ]},
+      { type: 'skill', name: 'Bar Muscle-Up', exercises: [
+        { name: 'Chest-to-bar pull-up', sets: 5, target: '5 reps' },
+        { name: 'Muscle-up negative', sets: 5, target: '3 reps' },
+        { name: 'MU transition practice', sets: 5, target: '3 reps' },
+        { name: 'Full bar muscle-up', sets: 3, target: '1-3 reps' },
+      ]},
+      { type: 'skill', name: 'Back Lever', exercises: [
+        { name: 'German hang', sets: 3, target: '10s' },
+        { name: 'Tuck back lever', sets: 4, target: '8s' },
+        { name: 'Advanced tuck back lever', sets: 4, target: '6s' },
+        { name: 'Full back lever', sets: 4, target: '4s', note: 'When tuck is solid' },
+      ]},
+      { type: 'strength', exercises: [
+        { name: 'Weighted chin-up', sets: 4, reps: '6' },
+        { name: 'T-bar row', sets: 4, reps: '8' },
+        { name: 'Straight-arm pulldown', sets: 3, reps: '12' },
+        { name: 'Incline dumbbell curl', sets: 3, reps: '10' },
+        { name: 'Zottman curl', sets: 3, reps: '10' },
+        { name: 'Ring row', sets: 3, reps: '10' },
+      ]},
+    ],
+  },
+  4: { label: 'Rest / Active Recovery', focus: 'Recovery', blocks: [] },
+  5: {
+    label: 'Pistol Squat + Hinge',
+    focus: 'Pistol Squat · Deadlift · Posterior Chain',
+    blocks: [
+      { type: 'warmup', items: [
+        'Ankle CARs — 30 sec each',
+        'Hip CARs — 30 sec each',
+        'Goblet squat — 10 reps',
+        'Single-leg balance — 30 sec each',
+        'Glute bridge — 20 reps',
+      ]},
+      { type: 'skill', name: 'Pistol Squat', note: 'Hold wall or use band for early levels', exercises: [
+        { name: 'Assisted pistol (high box)', sets: 3, target: '5e' },
+        { name: 'Low box pistol squat', sets: 3, target: '5e' },
+        { name: 'Pistol negative', sets: 3, target: '5e' },
+        { name: 'Full pistol squat', sets: 3, target: '5e' },
+        { name: 'Weighted pistol squat', sets: 3, target: '5e', note: 'When full pistol is solid' },
+      ]},
+      { type: 'strength', exercises: [
+        { name: 'Trap bar deadlift', sets: 4, reps: '6' },
+        { name: 'Single-leg RDL', sets: 3, reps: '8e' },
+        { name: 'Hip thrust', sets: 3, reps: '12' },
+        { name: 'Hamstring curl', sets: 3, reps: '12' },
+      ]},
+    ],
+  },
+  6: {
+    label: 'Power or Zone 2',
+    focus: 'Explosive power · Conditioning',
+    blocks: [
+      { type: 'warmup', items: [
+        'Jumping jacks — 30 sec',
+        'Hip flexor lunge — 30 sec each',
+        'Leg swings — 20 each side',
+        'Arm circles — 20 each',
+      ]},
+      { type: 'strength', label: 'Power Block', exercises: [
+        { name: 'Hang clean (barbell or KB)', sets: 5, reps: '3', note: 'Full reset between reps' },
+        { name: 'Jump squat', sets: 4, reps: '6' },
+        { name: 'Explosive ring row', sets: 4, reps: '5' },
+      ]},
+      { type: 'cardio', label: 'Zone 2 Run (power block OR this run)', target: '50-65 min', bpmTarget: '130-145' },
+    ],
+  },
+  0: { label: 'Full Rest', focus: 'Recovery', blocks: [] },
+};
+
 export const DEFAULT_CHECKLIST_ITEMS = [
   { key: 'morningCARs', label: 'Morning CARs (10 min)', icon: '🌅' },
   { key: 'morningSupplements', label: 'Morning supplements', icon: '💊' },

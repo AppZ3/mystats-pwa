@@ -1,0 +1,191 @@
+{
+  "exported": "2026-05-20T00:00:00.000Z",
+  "workouts": [],
+  "runs": [],
+  "reminders": [],
+  "checklists": [],
+  "bloodwork": [],
+  "bodyscans": [
+    {
+      "date": "2026-04-15",
+      "notes": "InBody scan — verify date against original printout",
+      "weight": 75.1,
+      "smm": 35.1,
+      "pbf": 20.1,
+      "bodyFatMass": 15.1,
+      "bmi": 23.8,
+      "inbodyScore": 85,
+      "ecwRatio": 0.378,
+      "tbw": 38.1,
+      "protein": 14.1,
+      "minerals": 4.1,
+      "vfl": null,
+      "vfa": null,
+      "bmr": null,
+      "phaseAngle": null,
+      "ffmi": null,
+      "whr": null,
+      "bmc": null,
+      "rightArm": 3.27,
+      "leftArm": 3.27,
+      "trunk": 27.9,
+      "rightLeg": 10.7,
+      "leftLeg": 10.7
+    }
+  ],
+  "settings": [
+    {
+      "key": "programme",
+      "value": "A"
+    },
+    {
+      "key": "current_week",
+      "value": 1
+    },
+    {
+      "key": "targets",
+      "value": {
+        "inbodyScore": { "current": 85,   "aboveAvg": 88,   "elite": 93   },
+        "bodyFatPct":  { "current": 20.1, "aboveAvg": 12,   "elite": 9    },
+        "smm":         { "current": 35.1, "aboveAvg": 38,   "elite": 42   },
+        "vfl":         { "current": 0,    "aboveAvg": 3,    "elite": 1.5  },
+        "phaseAngle":  { "current": 0,    "aboveAvg": 7,    "elite": 8.0  },
+        "bmr":         { "current": 0,    "aboveAvg": 1850, "elite": 2000 },
+        "proteinMass": { "current": 14.1, "aboveAvg": 13,   "elite": 15   }
+      }
+    },
+    {
+      "key": "supplements",
+      "value": [
+        { "name": "Probiotics 30-50B CFU",          "timing": "Morning fasted",           "phase": 1, "withFat": false },
+        { "name": "Rhodiola Rosea 400mg",            "timing": "Morning fasted",           "phase": 2, "withFat": false },
+        { "name": "NMN 500mg",                       "timing": "Morning fasted",           "phase": 3, "withFat": false },
+        { "name": "Apigenin 100mg",                  "timing": "Morning with NMN",         "phase": 3, "withFat": false },
+        { "name": "Vitamin D3 4000IU + K2 200mcg",  "timing": "Morning with fat",         "phase": 1, "withFat": true  },
+        { "name": "Tongkat Ali 400-600mg",           "timing": "Morning",                  "phase": 2, "withFat": false },
+        { "name": "Boron 6-10mg",                    "timing": "Morning",                  "phase": 2, "withFat": false },
+        { "name": "Lion's Mane 1000mg",              "timing": "Morning with food",        "phase": 2, "withFat": false },
+        { "name": "Alpha-GPC 300-600mg",             "timing": "Morning or pre-training",  "phase": 2, "withFat": false },
+        { "name": "CoQ10 Ubiquinol 200mg",           "timing": "Morning with fat",         "phase": 2, "withFat": true  },
+        { "name": "Ginkgo Biloba 120-240mg",         "timing": "Morning",                  "phase": 2, "withFat": false },
+        { "name": "Shilajit 300-500mg",              "timing": "Morning",                  "phase": 2, "withFat": false },
+        { "name": "Resveratrol 500mg",               "timing": "Morning with fat",         "phase": 3, "withFat": true  },
+        { "name": "Spermidine 1-2mg",                "timing": "Morning",                  "phase": 3, "withFat": false },
+        { "name": "Saw Palmetto 320mg",              "timing": "Morning with breakfast",   "phase": 1, "withFat": false, "hair": true },
+        { "name": "Biotin 3-5mg",                    "timing": "Morning",                  "phase": 1, "withFat": false, "hair": true },
+        { "name": "Omega-3 3-4g",                    "timing": "With meals with fat",      "phase": 1, "withFat": true  },
+        { "name": "Berberine 500mg",                 "timing": "With main meals",          "phase": 2, "withFat": false },
+        { "name": "Quercetin 500mg + Bromelain 250mg", "timing": "With lunch",            "phase": 3, "withFat": false },
+        { "name": "Fisetin 100-200mg",               "timing": "With lunch with fat",      "phase": 3, "withFat": true  },
+        { "name": "Astaxanthin 12mg",                "timing": "With meal with fat",       "phase": 3, "withFat": true  },
+        { "name": "Turkey Tail 1000mg",              "timing": "With lunch",               "phase": 3, "withFat": false },
+        { "name": "Phosphatidylserine 300mg",        "timing": "With meals with fat",      "phase": 2, "withFat": true  },
+        { "name": "Magnesium Glycinate 400mg",       "timing": "Before bed",               "phase": 1, "withFat": false },
+        { "name": "Zinc Bisglycinate 25-30mg",       "timing": "Evening with food",        "phase": 1, "withFat": false },
+        { "name": "Ashwagandha KSM-66 600mg",        "timing": "Evening with food",        "phase": 1, "withFat": false },
+        { "name": "Bacopa Monnieri 300mg",           "timing": "Evening with food",        "phase": 2, "withFat": false },
+        { "name": "Reishi 1000mg",                   "timing": "Evening",                  "phase": 3, "withFat": false },
+        { "name": "Creatine 5g",                     "timing": "Post-training or morning", "phase": 1, "withFat": false }
+      ]
+    },
+    {
+      "key": "morning_routine",
+      "value": [
+        "Ankle CARs (30 sec each)",
+        "Hip CARs (30 sec each)",
+        "Shoulder CARs (30 sec each)",
+        "Thoracic rotation (10 each side)",
+        "Deep squat hold (60 sec)",
+        "Hip flexor lunge (45 sec each)",
+        "Wrist CARs — right full, left pain-free only"
+      ]
+    },
+    {
+      "key": "checklist_items",
+      "value": [
+        { "key": "morningCARs",          "label": "Morning CARs (10 min)",          "icon": "🌅" },
+        { "key": "morningSupplements",   "label": "Morning supplements",            "icon": "💊" },
+        { "key": "preTrainingCollagen",  "label": "Collagen + Vit C (30-60 min pre)", "icon": "🦴" },
+        { "key": "training",             "label": "Training session",               "icon": "💪" },
+        { "key": "postTrainingCreatine", "label": "Post-training creatine 5g",      "icon": "⚡" },
+        { "key": "protein165g",          "label": "Protein 165g today",             "icon": "🥩" },
+        { "key": "wristRehab",           "label": "Wrist rehab exercises",          "icon": "🤝" },
+        { "key": "ghkCuScalp",           "label": "GHK-Cu scalp (AM + PM)",         "icon": "💆" },
+        { "key": "mobilitySession",      "label": "Mobility session",               "icon": "🧘" },
+        { "key": "eveningSupplements",   "label": "Evening supplements",            "icon": "🌙" },
+        { "key": "sleep",                "label": "Sleep 7.5-9 hrs",                "icon": "😴" }
+      ]
+    },
+    {
+      "key": "user_profile",
+      "value": {
+        "name": "",
+        "age": null,
+        "sex": "M",
+        "height": null,
+        "startWeight": 75.1,
+        "proteinTarget": 165,
+        "goal": "performance"
+      }
+    },
+    {
+      "key": "programme_a_targets",
+      "value": {
+        "Weighted ring push-up":         { "sets": 4, "reps": "8"   },
+        "Pike push-up (feet elevated)":  { "sets": 3, "reps": "10"  },
+        "Dumbbell floor press":          { "sets": 3, "reps": "10"  },
+        "Ring dip":                      { "sets": 3, "reps": "8"   },
+        "Overhead dumbbell press":       { "sets": 3, "reps": "10"  },
+        "Tricep extension (cable or band)": { "sets": 3, "reps": "12" },
+        "Weighted pull-up":              { "sets": 4, "reps": "6"   },
+        "Barbell row":                   { "sets": 4, "reps": "8"   },
+        "Single-arm dumbbell row":       { "sets": 3, "reps": "10"  },
+        "Face pull":                     { "sets": 3, "reps": "15"  },
+        "Hammer curl":                   { "sets": 3, "reps": "10"  },
+        "Dead hang":                     { "sets": 2, "reps": "30s" },
+        "Bulgarian split squat":         { "sets": 4, "reps": "8e"  },
+        "Romanian deadlift":             { "sets": 4, "reps": "8"   },
+        "Single-leg press":              { "sets": 3, "reps": "10e" },
+        "Nordic curl":                   { "sets": 3, "reps": "6"   },
+        "Step-up":                       { "sets": 3, "reps": "10e" },
+        "Calf raise":                    { "sets": 4, "reps": "15e" },
+        "Box jump":                      { "sets": 5, "reps": "5"   },
+        "Broad jump":                    { "sets": 4, "reps": "4"   },
+        "Explosive push-up":             { "sets": 4, "reps": "6"   },
+        "Pull-up":                       { "sets": 1, "reps": "8"   },
+        "Dip":                           { "sets": 1, "reps": "8"   },
+        "Push-up":                       { "sets": 1, "reps": "12"  },
+        "Air squat":                     { "sets": 1, "reps": "15"  },
+        "Hanging leg raise":             { "sets": 1, "reps": "8"   }
+      }
+    },
+    {
+      "key": "programme_b_targets",
+      "value": {
+        "Seated overhead press":         { "sets": 4, "reps": "8"   },
+        "Arnold press":                  { "sets": 3, "reps": "10"  },
+        "Landmine press":                { "sets": 3, "reps": "10e" },
+        "Lateral raise":                 { "sets": 4, "reps": "15"  },
+        "Face pull":                     { "sets": 4, "reps": "15"  },
+        "Tricep extension":              { "sets": 3, "reps": "12"  },
+        "Weighted chin-up":              { "sets": 4, "reps": "6"   },
+        "T-bar row":                     { "sets": 4, "reps": "8"   },
+        "Straight-arm pulldown":         { "sets": 3, "reps": "12"  },
+        "Incline dumbbell curl":         { "sets": 3, "reps": "10"  },
+        "Zottman curl":                  { "sets": 3, "reps": "10"  },
+        "Ring row":                      { "sets": 3, "reps": "10"  },
+        "Trap bar deadlift":             { "sets": 4, "reps": "6"   },
+        "Single-leg RDL":               { "sets": 3, "reps": "8e"  },
+        "Hip thrust":                    { "sets": 3, "reps": "12"  },
+        "Hamstring curl":                { "sets": 3, "reps": "12"  },
+        "Hang clean (barbell or KB)":    { "sets": 5, "reps": "3"   },
+        "Jump squat":                    { "sets": 4, "reps": "6"   },
+        "Explosive ring row":            { "sets": 4, "reps": "5"   },
+        "Ab wheel rollout":              { "sets": 1, "reps": "8"   },
+        "Toes-to-bar":                   { "sets": 1, "reps": "10"  },
+        "Dragon flag negative":          { "sets": 1, "reps": "4"   },
+        "V-up":                          { "sets": 1, "reps": "12"  }
+      }
+    }
+  ]
+}

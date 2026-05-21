@@ -1,0 +1,181 @@
+<h2>What's the right nav structure?</h2>
+<p class="subtitle">You have 7 tabs — but some matter every day, others are occasional. Which grouping feels right for how you actually use the app?</p>
+
+<style>
+.mockup-phone {
+  background: #0a0a0f;
+  border: 2px solid #2a2a3e;
+  border-radius: 24px;
+  width: 200px;
+  min-height: 360px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  font-family: -apple-system, sans-serif;
+}
+.phone-header {
+  background: #0e0e1a;
+  border-bottom: 1px solid #2a2a3e;
+  padding: 8px 12px;
+  font-size: 11px;
+  font-weight: 700;
+  color: #6c63ff;
+}
+.phone-content {
+  flex: 1;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.phone-nav {
+  background: #0e0e1a;
+  border-top: 1px solid #2a2a3e;
+  display: flex;
+  padding: 6px 0 10px;
+}
+.phone-nav-btn {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: #7070a0;
+  font-size: 8px;
+}
+.phone-nav-btn.active { color: #6c63ff; }
+.phone-nav-icon { font-size: 14px; }
+.phone-card {
+  background: #14141f;
+  border: 1px solid #2a2a3e;
+  border-radius: 8px;
+  padding: 7px 9px;
+  font-size: 9px;
+  color: #e8e8f0;
+}
+.phone-card-label {
+  font-size: 7px;
+  color: #7070a0;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  margin-bottom: 4px;
+}
+.tag {
+  display: inline-block;
+  font-size: 7px;
+  padding: 1px 5px;
+  border-radius: 10px;
+  font-weight: 700;
+}
+.tag-teal { background: #00d4aa18; color: #00d4aa; border: 1px solid #00d4aa33; }
+.tag-purple { background: #6c63ff18; color: #a09bff; border: 1px solid #6c63ff44; }
+.tag-red { background: #ff6b6b18; color: #ff6b6b; border: 1px solid #ff6b6b33; }
+.mock-row { display: flex; align-items: center; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #1a1a28; font-size: 8px; }
+.mock-row:last-child { border-bottom: none; }
+.mock-circle { width: 14px; height: 14px; border-radius: 50%; background: #6c63ff22; border: 1px solid #6c63ff44; display: flex; align-items: center; justify-content: center; font-size: 8px; }
+.set-pill { background: #1a1a28; border: 1px solid #2a2a3e; border-radius: 4px; padding: 1px 5px; font-size: 7px; color: #7070a0; }
+.mock-set-row { display: flex; gap: 3px; margin-top: 3px; }
+</style>
+
+<div class="options" style="grid-template-columns: repeat(3, 1fr);">
+
+  <!-- Option A: 5 tabs, merge Train+Today -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>5 Tabs — Merged</h3>
+      <p>Today absorbs Train & Run. Body, Progress, Alerts, Setup remain. Fewer taps to log.</p>
+      <div style="display:flex;justify-content:center;margin-top:12px;">
+        <div class="mockup-phone">
+          <div class="phone-header">MyStats</div>
+          <div class="phone-content">
+            <div class="phone-card">
+              <div class="phone-card-label">Today · Strength A</div>
+              <div class="mock-row"><span>💪 Warmup</span><span class="tag tag-teal">✓ Done</span></div>
+              <div class="mock-row"><span>🏋 Pull-up</span><span>4×6</span></div>
+              <div class="mock-row"><span>🏃 Run</span><span class="tag tag-purple">Log</span></div>
+            </div>
+            <div class="phone-card">
+              <div class="phone-card-label">Checklist</div>
+              <div class="mock-row"><span>☑ CARs</span><div></div></div>
+              <div class="mock-row"><span>☐ Protein 165g</span><div></div></div>
+            </div>
+          </div>
+          <div class="phone-nav">
+            <div class="phone-nav-btn active"><div class="phone-nav-icon">🏠</div><span>Today</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">📊</div><span>Body</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">📈</div><span>Progress</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">🔔</div><span>Alerts</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">⚙️</div><span>Setup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option B: Keep 7 tabs, reorder for workflow -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>7 Tabs — Reordered</h3>
+      <p>Keep all tabs but put Train & Run right next to Today. Familiar but better flow.</p>
+      <div style="display:flex;justify-content:center;margin-top:12px;">
+        <div class="mockup-phone">
+          <div class="phone-header">Today</div>
+          <div class="phone-content">
+            <div class="phone-card">
+              <div class="phone-card-label">Session · Day 1</div>
+              <div class="mock-row"><span>Weighted pull-up</span><span>4×6</span></div>
+              <div class="mock-row"><span>Barbell row</span><span>4×8</span></div>
+              <div class="mock-row"><span>Hammer curl</span><span>3×10</span></div>
+            </div>
+          </div>
+          <div class="phone-nav" style="font-size:7px;">
+            <div class="phone-nav-btn active"><div class="phone-nav-icon">🏠</div><span>Today</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">💪</div><span>Train</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">🏃</div><span>Run</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">📊</div><span>Body</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">📈</div><span>More</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Option C: 4 core tabs + overflow menu -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>4 Tabs + More</h3>
+      <p>Today, Body, Progress, + a "More" overflow for Alerts & Setup. Clearest nav for daily use.</p>
+      <div style="display:flex;justify-content:center;margin-top:12px;">
+        <div class="mockup-phone">
+          <div class="phone-header">MyStats</div>
+          <div class="phone-content">
+            <div class="phone-card">
+              <div class="phone-card-label">Strength · Block 2</div>
+              <div class="mock-row"><span>Pull-up</span><span class="set-pill">4×6</span></div>
+              <div class="mock-set-row">
+                <input style="width:38px;background:#1a1a28;border:1px solid #2a2a3e;border-radius:4px;color:#e8e8f0;font-size:8px;padding:2px 4px;" placeholder="kg" />
+                <input style="width:30px;background:#1a1a28;border:1px solid #2a2a3e;border-radius:4px;color:#e8e8f0;font-size:8px;padding:2px 4px;" placeholder="reps" />
+              </div>
+            </div>
+            <div class="phone-card" style="background:#00d4aa08;border-color:#00d4aa33;">
+              <div class="phone-card-label" style="color:#00d4aa;">Checklist · 3/6 done</div>
+              <div style="height:4px;background:#1a1a28;border-radius:3px;margin-bottom:4px;"><div style="width:50%;height:100%;background:#00d4aa;border-radius:3px;"></div></div>
+              <div class="mock-row"><span>✓ CARs</span><span class="tag tag-teal">done</span></div>
+              <div class="mock-row"><span>○ Protein</span><div></div></div>
+            </div>
+          </div>
+          <div class="phone-nav">
+            <div class="phone-nav-btn active"><div class="phone-nav-icon">🏠</div><span>Today</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">📊</div><span>Body</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">📈</div><span>Progress</span></div>
+            <div class="phone-nav-btn"><div class="phone-nav-icon">☰</div><span>More</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

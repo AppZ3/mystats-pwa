@@ -1,0 +1,237 @@
+<h2>Visual direction — which feels right?</h2>
+<p class="subtitle">Same dark base, three different personalities. Which matches the vibe you want mid-workout?</p>
+
+<style>
+* { box-sizing: border-box; }
+.phone-wrap { display: flex; justify-content: center; margin-top: 12px; }
+.mockup-phone {
+  border-radius: 26px;
+  width: 200px;
+  font-family: -apple-system, sans-serif;
+  overflow: hidden;
+  border: 2px solid transparent;
+}
+
+/* ── Theme A: Current — deep purple/teal ── */
+.theme-a { background: #0a0a0f; border-color: #2a2a3e; }
+.theme-a .ph { background: #0e0e1a; border-bottom: 1px solid #2a2a3e; padding: 9px 12px; font-size: 11px; font-weight: 700; color: #6c63ff; display:flex; justify-content:space-between; align-items:center; }
+.theme-a .pc { padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+.theme-a .card { background: #14141f; border: 1px solid #2a2a3e; border-radius: 10px; padding: 8px 10px; }
+.theme-a .label { font-size: 7px; color: #7070a0; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+.theme-a .acc { color: #6c63ff; }
+.theme-a .acc2 { color: #00d4aa; }
+.theme-a .tile { background: #00d4aa0a; border: 1px solid #00d4aa33; border-radius: 7px; padding: 6px 8px; display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+.theme-a .tile-inp { background: #0a0a0f; border: 1px solid #00d4aa33; border-radius: 5px; color: #00d4aa; font-size: 10px; font-weight: 700; padding: 3px 0; text-align: center; width: 38px; }
+.theme-a .tick { width: 18px; height: 18px; border-radius: 50%; background: #00d4aa; color: #0a0a0f; font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; margin-left: auto; }
+.theme-a .untick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #2a2a3e; margin-left: auto; }
+.theme-a .bar { height: 4px; background: #1a1a28; border-radius: 3px; margin-top: 6px; }
+.theme-a .bar-fill { height: 100%; width: 45%; background: linear-gradient(90deg, #6c63ff, #00d4aa); border-radius: 3px; }
+.theme-a .exname { font-size: 10px; font-weight: 700; color: #e8e8f0; }
+.theme-a .target { font-size: 8px; color: #6c63ff; font-weight: 600; }
+.theme-a .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+.theme-a .nav { background: #0e0e1a; border-top: 1px solid #2a2a3e; display: flex; padding: 6px 0 10px; }
+.theme-a .nb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #7070a0; font-size: 7px; }
+.theme-a .nb.on { color: #6c63ff; }
+.theme-a .ni { font-size: 13px; }
+.theme-a .stag { display: inline-block; font-size: 6px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 3px; padding: 1px 5px; background: #ff6b6b18; color: #ff6b6b; border: 1px solid #ff6b6b33; margin-bottom: 5px; }
+
+/* ── Theme B: Carbon — dark grey/orange energy ── */
+.theme-b { background: #111114; border-color: #303038; }
+.theme-b .ph { background: #1a1a1f; border-bottom: 1px solid #303038; padding: 9px 12px; font-size: 11px; font-weight: 700; color: #ff8c42; display:flex; justify-content:space-between; align-items:center; }
+.theme-b .pc { padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+.theme-b .card { background: #1a1a1f; border: 1px solid #303038; border-radius: 10px; padding: 8px 10px; }
+.theme-b .label { font-size: 7px; color: #606070; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+.theme-b .acc { color: #ff8c42; }
+.theme-b .acc2 { color: #ffd166; }
+.theme-b .tile { background: #ffd16608; border: 1px solid #ffd16633; border-radius: 7px; padding: 6px 8px; display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+.theme-b .tile-inp { background: #111114; border: 1px solid #ffd16633; border-radius: 5px; color: #ffd166; font-size: 10px; font-weight: 700; padding: 3px 0; text-align: center; width: 38px; }
+.theme-b .tick { width: 18px; height: 18px; border-radius: 50%; background: #ff8c42; color: #fff; font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; margin-left: auto; }
+.theme-b .untick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #303038; margin-left: auto; }
+.theme-b .bar { height: 4px; background: #222228; border-radius: 3px; margin-top: 6px; }
+.theme-b .bar-fill { height: 100%; width: 45%; background: linear-gradient(90deg, #ff8c42, #ffd166); border-radius: 3px; }
+.theme-b .exname { font-size: 10px; font-weight: 700; color: #e8e8e8; }
+.theme-b .target { font-size: 8px; color: #ff8c42; font-weight: 600; }
+.theme-b .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+.theme-b .nav { background: #1a1a1f; border-top: 1px solid #303038; display: flex; padding: 6px 0 10px; }
+.theme-b .nb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #606070; font-size: 7px; }
+.theme-b .nb.on { color: #ff8c42; }
+.theme-b .ni { font-size: 13px; }
+.theme-b .stag { display: inline-block; font-size: 6px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 3px; padding: 1px 5px; background: #ff8c4218; color: #ff8c42; border: 1px solid #ff8c4233; margin-bottom: 5px; }
+
+/* ── Theme C: Midnight blue — deep navy/cyan clinical ── */
+.theme-c { background: #080c14; border-color: #1e2a3a; }
+.theme-c .ph { background: #0c1220; border-bottom: 1px solid #1e2a3a; padding: 9px 12px; font-size: 11px; font-weight: 700; color: #38bdf8; display:flex; justify-content:space-between; align-items:center; }
+.theme-c .pc { padding: 10px; display: flex; flex-direction: column; gap: 7px; }
+.theme-c .card { background: #0f1825; border: 1px solid #1e2a3a; border-radius: 10px; padding: 8px 10px; }
+.theme-c .label { font-size: 7px; color: #4a6080; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+.theme-c .acc { color: #38bdf8; }
+.theme-c .acc2 { color: #34d399; }
+.theme-c .tile { background: #34d39908; border: 1px solid #34d39933; border-radius: 7px; padding: 6px 8px; display: flex; align-items: center; gap: 5px; margin-bottom: 4px; }
+.theme-c .tile-inp { background: #080c14; border: 1px solid #34d39933; border-radius: 5px; color: #34d399; font-size: 10px; font-weight: 700; padding: 3px 0; text-align: center; width: 38px; }
+.theme-c .tick { width: 18px; height: 18px; border-radius: 50%; background: #34d399; color: #080c14; font-size: 9px; display: flex; align-items: center; justify-content: center; font-weight: 800; margin-left: auto; }
+.theme-c .untick { width: 18px; height: 18px; border-radius: 50%; border: 1.5px solid #1e2a3a; margin-left: auto; }
+.theme-c .bar { height: 4px; background: #1e2a3a; border-radius: 3px; margin-top: 6px; }
+.theme-c .bar-fill { height: 100%; width: 45%; background: linear-gradient(90deg, #38bdf8, #34d399); border-radius: 3px; }
+.theme-c .exname { font-size: 10px; font-weight: 700; color: #dde8f0; }
+.theme-c .target { font-size: 8px; color: #38bdf8; font-weight: 600; }
+.theme-c .row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+.theme-c .nav { background: #0c1220; border-top: 1px solid #1e2a3a; display: flex; padding: 6px 0 10px; }
+.theme-c .nb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #4a6080; font-size: 7px; }
+.theme-c .nb.on { color: #38bdf8; }
+.theme-c .ni { font-size: 13px; }
+.theme-c .stag { display: inline-block; font-size: 6px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 3px; padding: 1px 5px; background: #38bdf818; color: #38bdf8; border: 1px solid #38bdf833; margin-bottom: 5px; }
+</style>
+
+<div class="options" style="grid-template-columns: repeat(3, 1fr);">
+
+  <!-- A: Current refined — purple / teal -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Current — refined</h3>
+      <p>Purple + teal. Keep what you have, just cleaner spacing and bigger inputs.</p>
+      <div class="phone-wrap">
+        <div class="mockup-phone theme-a">
+          <div class="ph"><span>MyStats</span><span class="acc2" style="font-size:8px;">45% ▓▓░░░</span></div>
+          <div class="pc">
+            <div class="card">
+              <div class="stag">Strength</div>
+              <div class="row">
+                <span class="exname">Weighted pull-up</span>
+                <span class="target">4 × 6</span>
+              </div>
+              <div class="tile">
+                <span style="font-size:8px;color:#7070a0;min-width:14px;">S1</span>
+                <input class="tile-inp" value="10" readonly />
+                <span style="font-size:8px;color:#2a2a3e;">×</span>
+                <input class="tile-inp" style="width:30px;" value="6" readonly />
+                <div class="tick">✓</div>
+              </div>
+              <div class="tile" style="background:transparent;border-color:#2a2a3e;">
+                <span style="font-size:8px;color:#7070a0;min-width:14px;">S2</span>
+                <input class="tile-inp" style="border-color:#2a2a3e;color:#e8e8f0;" placeholder="kg" readonly />
+                <span style="font-size:8px;color:#2a2a3e;">×</span>
+                <input class="tile-inp" style="width:30px;border-color:#2a2a3e;color:#e8e8f0;" placeholder="reps" readonly />
+                <div class="untick"></div>
+              </div>
+              <div class="bar"><div class="bar-fill"></div></div>
+            </div>
+            <div class="card">
+              <div class="label">Checklist · 3/6</div>
+              <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0;"><span style="color:#00d4aa;">✓ Morning CARs</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0;color:#7070a0;"><span>○ Protein 165g</span></div>
+            </div>
+          </div>
+          <div class="nav">
+            <div class="nb on"><span class="ni">🏠</span><span>Today</span></div>
+            <div class="nb"><span class="ni">💪</span><span>Train</span></div>
+            <div class="nb"><span class="ni">🏃</span><span>Run</span></div>
+            <div class="nb"><span class="ni">📊</span><span>Body</span></div>
+            <div class="nb"><span class="ni">⚙️</span><span>Setup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B: Carbon — dark grey / orange -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Carbon</h3>
+      <p>Near-black with orange/gold energy. Feels like a high-performance training app.</p>
+      <div class="phone-wrap">
+        <div class="mockup-phone theme-b">
+          <div class="ph"><span>MyStats</span><span class="acc2" style="font-size:8px;">45% ▓▓░░░</span></div>
+          <div class="pc">
+            <div class="card">
+              <div class="stag">Strength</div>
+              <div class="row">
+                <span class="exname">Weighted pull-up</span>
+                <span class="target">4 × 6</span>
+              </div>
+              <div class="tile">
+                <span style="font-size:8px;color:#606070;min-width:14px;">S1</span>
+                <input class="tile-inp" value="10" readonly />
+                <span style="font-size:8px;color:#303038;">×</span>
+                <input class="tile-inp" style="width:30px;" value="6" readonly />
+                <div class="tick">✓</div>
+              </div>
+              <div class="tile" style="background:transparent;border-color:#303038;">
+                <span style="font-size:8px;color:#606070;min-width:14px;">S2</span>
+                <input class="tile-inp" style="border-color:#303038;color:#e8e8e8;" placeholder="kg" readonly />
+                <span style="font-size:8px;color:#303038;">×</span>
+                <input class="tile-inp" style="width:30px;border-color:#303038;color:#e8e8e8;" placeholder="reps" readonly />
+                <div class="untick"></div>
+              </div>
+              <div class="bar"><div class="bar-fill"></div></div>
+            </div>
+            <div class="card">
+              <div class="label">Checklist · 3/6</div>
+              <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0;"><span style="color:#ffd166;">✓ Morning CARs</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0;color:#606070;"><span>○ Protein 165g</span></div>
+            </div>
+          </div>
+          <div class="nav">
+            <div class="nb on"><span class="ni">🏠</span><span>Today</span></div>
+            <div class="nb"><span class="ni">💪</span><span>Train</span></div>
+            <div class="nb"><span class="ni">🏃</span><span>Run</span></div>
+            <div class="nb"><span class="ni">📊</span><span>Body</span></div>
+            <div class="nb"><span class="ni">⚙️</span><span>Setup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C: Midnight — navy / cyan -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Midnight</h3>
+      <p>Deep navy with sky blue + emerald. Clean, clinical, data-focused.</p>
+      <div class="phone-wrap">
+        <div class="mockup-phone theme-c">
+          <div class="ph"><span>MyStats</span><span class="acc2" style="font-size:8px;">45% ▓▓░░░</span></div>
+          <div class="pc">
+            <div class="card">
+              <div class="stag">Strength</div>
+              <div class="row">
+                <span class="exname">Weighted pull-up</span>
+                <span class="target">4 × 6</span>
+              </div>
+              <div class="tile">
+                <span style="font-size:8px;color:#4a6080;min-width:14px;">S1</span>
+                <input class="tile-inp" value="10" readonly />
+                <span style="font-size:8px;color:#1e2a3a;">×</span>
+                <input class="tile-inp" style="width:30px;" value="6" readonly />
+                <div class="tick">✓</div>
+              </div>
+              <div class="tile" style="background:transparent;border-color:#1e2a3a;">
+                <span style="font-size:8px;color:#4a6080;min-width:14px;">S2</span>
+                <input class="tile-inp" style="border-color:#1e2a3a;color:#dde8f0;" placeholder="kg" readonly />
+                <span style="font-size:8px;color:#1e2a3a;">×</span>
+                <input class="tile-inp" style="width:30px;border-color:#1e2a3a;color:#dde8f0;" placeholder="reps" readonly />
+                <div class="untick"></div>
+              </div>
+              <div class="bar"><div class="bar-fill"></div></div>
+            </div>
+            <div class="card">
+              <div class="label">Checklist · 3/6</div>
+              <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0;"><span style="color:#34d399;">✓ Morning CARs</span></div>
+              <div style="display:flex;justify-content:space-between;font-size:8px;padding:2px 0;color:#4a6080;"><span>○ Protein 165g</span></div>
+            </div>
+          </div>
+          <div class="nav">
+            <div class="nb on"><span class="ni">🏠</span><span>Today</span></div>
+            <div class="nb"><span class="ni">💪</span><span>Train</span></div>
+            <div class="nb"><span class="ni">🏃</span><span>Run</span></div>
+            <div class="nb"><span class="ni">📊</span><span>Body</span></div>
+            <div class="nb"><span class="ni">⚙️</span><span>Setup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

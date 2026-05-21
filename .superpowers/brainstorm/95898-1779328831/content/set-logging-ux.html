@@ -1,0 +1,284 @@
+<h2>How do you log a set?</h2>
+<p class="subtitle">This is the core interaction — you do it dozens of times per session. Which feels fastest?</p>
+
+<style>
+* { box-sizing: border-box; }
+.phone-wrap { display: flex; justify-content: center; }
+.mockup-phone {
+  background: #0a0a0f;
+  border: 2px solid #2a2a3e;
+  border-radius: 24px;
+  width: 220px;
+  font-family: -apple-system, sans-serif;
+  overflow: hidden;
+}
+.phone-header {
+  background: #0e0e1a;
+  border-bottom: 1px solid #2a2a3e;
+  padding: 8px 12px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #6c63ff;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.phone-content { padding: 10px; display: flex; flex-direction: column; gap: 8px; }
+
+/* shared */
+.block-tag {
+  display: inline-block; font-size: 7px; font-weight: 700; letter-spacing: .05em;
+  text-transform: uppercase; border-radius: 4px; padding: 1px 5px; margin-bottom: 6px;
+  background: #ff6b6b18; color: #ff6b6b; border: 1px solid #ff6b6b33;
+}
+.ex-name { font-size: 10px; font-weight: 700; color: #e8e8f0; }
+.ex-target { font-size: 8px; color: #6c63ff; font-weight: 600; }
+.ex-header { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+
+/* ── Option A: Current rows style, cleaned up ── */
+.set-row-a {
+  display: flex; align-items: center; gap: 4px;
+  padding: 3px 0; border-bottom: 1px solid #1a1a28;
+}
+.set-row-a:last-child { border-bottom: none; }
+.set-num-a { font-size: 8px; color: #7070a0; min-width: 18px; }
+.inp-a {
+  background: #12121c; border: 1px solid #2a2a3e; border-radius: 4px;
+  color: #e8e8f0; font-size: 9px; padding: 3px 5px; text-align: center;
+}
+.inp-a.w { width: 38px; }
+.inp-a.r { width: 30px; }
+.inp-a.n { flex: 1; text-align: left; }
+.sep-a { font-size: 8px; color: #2a2a3e; }
+
+/* ── Option B: Big tap targets, one row per set ── */
+.set-tile {
+  display: flex; align-items: center; gap: 6px;
+  background: #12121c; border: 1px solid #2a2a3e; border-radius: 8px;
+  padding: 6px 8px; margin-bottom: 4px;
+}
+.set-tile.done { background: #00d4aa0a; border-color: #00d4aa33; }
+.set-num-b { font-size: 8px; color: #7070a0; min-width: 14px; font-weight: 700; }
+.set-inputs-b { display: flex; gap: 4px; flex: 1; }
+.inp-b {
+  background: #0a0a0f; border: 1px solid #2a2a3e; border-radius: 6px;
+  color: #e8e8f0; font-size: 11px; font-weight: 600; padding: 4px 0;
+  text-align: center; flex: 1;
+}
+.inp-b.done { border-color: #00d4aa44; color: #00d4aa; }
+.inp-b-label { font-size: 7px; color: #7070a0; text-align: center; margin-top: 1px; }
+.set-check {
+  width: 20px; height: 20px; border-radius: 50%;
+  border: 1.5px solid #2a2a3e; background: transparent;
+  display: flex; align-items: center; justify-content: center; font-size: 9px;
+  flex-shrink: 0;
+}
+.set-check.done { background: #00d4aa; border-color: #00d4aa; color: #fff; }
+
+/* ── Option C: Compact grid, previous shown as ghost ── */
+.ex-block-c { background: #14141f; border: 1px solid #2a2a3e; border-radius: 8px; overflow: hidden; }
+.ex-head-c {
+  padding: 7px 9px 5px;
+  display: flex; justify-content: space-between; align-items: flex-start;
+}
+.prev-label { font-size: 7px; color: #7070a0; }
+.prev-val { font-size: 8px; color: #7070a0; font-weight: 600; }
+.sets-grid-c {
+  display: grid; grid-template-columns: 1fr 1fr;
+  gap: 0; border-top: 1px solid #1a1a28;
+}
+.set-cell {
+  padding: 5px 8px; border-right: 1px solid #1a1a28; border-bottom: 1px solid #1a1a28;
+}
+.set-cell:nth-child(2n) { border-right: none; }
+.set-cell:nth-last-child(-n+2) { border-bottom: none; }
+.set-cell-label { font-size: 7px; color: #7070a0; margin-bottom: 2px; }
+.set-cell-inputs { display: flex; gap: 3px; align-items: center; }
+.inp-c {
+  background: #0a0a0f; border: 1px solid #2a2a3e; border-radius: 4px;
+  color: #e8e8f0; font-size: 9px; padding: 3px 4px; text-align: center;
+}
+.inp-c.done-c { color: #00d4aa; border-color: #00d4aa33; background: #00d4aa08; }
+.sep-c { font-size: 7px; color: #2a2a3e; }
+.add-set-c {
+  padding: 5px 9px; border-top: 1px solid #1a1a28; font-size: 8px; color: #7070a0;
+  text-align: center; letter-spacing: .03em;
+}
+</style>
+
+<div class="options" style="grid-template-columns: repeat(3, 1fr);">
+
+  <!-- A: Cleaned-up rows (current approach, tightened) -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Row per set</h3>
+      <p>Clean rows with weight + reps fields. Same as now but tighter. Familiar.</p>
+      <div class="phone-wrap" style="margin-top:10px;">
+        <div class="mockup-phone">
+          <div class="phone-header"><span>Today</span><span style="color:#00d4aa;font-size:8px;">60% ▓▓▓░░</span></div>
+          <div class="phone-content">
+            <div style="background:#14141f;border:1px solid #2a2a3e;border-radius:8px;padding:8px 10px;">
+              <div class="block-tag">Strength</div>
+              <div class="ex-header">
+                <div class="ex-name">Weighted pull-up</div>
+                <div class="ex-target">4 × 6</div>
+              </div>
+              <div class="set-row-a">
+                <span class="set-num-a">S1</span>
+                <input class="inp-a w" value="10" readonly />
+                <span class="sep-a">×</span>
+                <input class="inp-a r" value="6" readonly />
+                <input class="inp-a n" placeholder="note" readonly />
+              </div>
+              <div class="set-row-a">
+                <span class="set-num-a">S2</span>
+                <input class="inp-a w" value="10" readonly />
+                <span class="sep-a">×</span>
+                <input class="inp-a r" value="6" readonly />
+                <input class="inp-a n" placeholder="note" readonly />
+              </div>
+              <div class="set-row-a">
+                <span class="set-num-a">S3</span>
+                <input class="inp-a w" placeholder="kg" readonly />
+                <span class="sep-a">×</span>
+                <input class="inp-a r" placeholder="reps" readonly />
+                <input class="inp-a n" placeholder="note" readonly />
+              </div>
+              <div style="text-align:center;margin-top:6px;border:1px dashed #2a2a3e;border-radius:5px;padding:3px;font-size:8px;color:#7070a0;">+ add set</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B: Big tile rows with tick -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Tile + tick</h3>
+      <p>Each set is a big tile. Tap ✓ to mark done. Large input fields, easy to hit on mobile.</p>
+      <div class="phone-wrap" style="margin-top:10px;">
+        <div class="mockup-phone">
+          <div class="phone-header"><span>Today</span><span style="color:#00d4aa;font-size:8px;">2/4 sets ✓</span></div>
+          <div class="phone-content">
+            <div style="background:#14141f;border:1px solid #2a2a3e;border-radius:8px;padding:8px 10px;">
+              <div class="block-tag">Strength</div>
+              <div class="ex-header">
+                <div class="ex-name">Weighted pull-up</div>
+                <div class="ex-target">4 × 6</div>
+              </div>
+              <div class="set-tile done">
+                <div class="set-num-b">S1</div>
+                <div class="set-inputs-b">
+                  <div>
+                    <input class="inp-b done" value="10" readonly style="width:46px;" />
+                    <div class="inp-b-label">kg</div>
+                  </div>
+                  <div>
+                    <input class="inp-b done" value="6" readonly style="width:36px;" />
+                    <div class="inp-b-label">reps</div>
+                  </div>
+                </div>
+                <div class="set-check done">✓</div>
+              </div>
+              <div class="set-tile done">
+                <div class="set-num-b">S2</div>
+                <div class="set-inputs-b">
+                  <div>
+                    <input class="inp-b done" value="10" readonly style="width:46px;" />
+                    <div class="inp-b-label">kg</div>
+                  </div>
+                  <div>
+                    <input class="inp-b done" value="6" readonly style="width:36px;" />
+                    <div class="inp-b-label">reps</div>
+                  </div>
+                </div>
+                <div class="set-check done">✓</div>
+              </div>
+              <div class="set-tile">
+                <div class="set-num-b">S3</div>
+                <div class="set-inputs-b">
+                  <div>
+                    <input class="inp-b" placeholder="kg" readonly style="width:46px;" />
+                    <div class="inp-b-label">kg</div>
+                  </div>
+                  <div>
+                    <input class="inp-b" placeholder="reps" readonly style="width:36px;" />
+                    <div class="inp-b-label">reps</div>
+                  </div>
+                </div>
+                <div class="set-check"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C: Compact 2-col grid with ghost previous -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Grid — ultra compact</h3>
+      <p>2-column grid. Previous session shown faded as reference. Most data on screen at once.</p>
+      <div class="phone-wrap" style="margin-top:10px;">
+        <div class="mockup-phone">
+          <div class="phone-header"><span>Today</span><span style="color:#6c63ff;font-size:8px;">prev: 8kg×6</span></div>
+          <div class="phone-content">
+            <div class="ex-block-c">
+              <div class="ex-head-c">
+                <div>
+                  <div class="ex-name" style="font-size:10px;">Weighted pull-up</div>
+                  <div class="ex-target" style="font-size:8px;">4 × 6</div>
+                </div>
+                <div style="text-align:right;">
+                  <div class="prev-label">Last time</div>
+                  <div class="prev-val">8 kg × 6</div>
+                </div>
+              </div>
+              <div class="sets-grid-c">
+                <div class="set-cell">
+                  <div class="set-cell-label">Set 1 ✓</div>
+                  <div class="set-cell-inputs">
+                    <input class="inp-c done-c" value="10" readonly style="width:28px;" />
+                    <span class="sep-c">×</span>
+                    <input class="inp-c done-c" value="6" readonly style="width:22px;" />
+                  </div>
+                </div>
+                <div class="set-cell">
+                  <div class="set-cell-label">Set 2 ✓</div>
+                  <div class="set-cell-inputs">
+                    <input class="inp-c done-c" value="10" readonly style="width:28px;" />
+                    <span class="sep-c">×</span>
+                    <input class="inp-c done-c" value="6" readonly style="width:22px;" />
+                  </div>
+                </div>
+                <div class="set-cell">
+                  <div class="set-cell-label">Set 3</div>
+                  <div class="set-cell-inputs">
+                    <input class="inp-c" placeholder="kg" readonly style="width:28px;" />
+                    <span class="sep-c">×</span>
+                    <input class="inp-c" placeholder="—" readonly style="width:22px;" />
+                  </div>
+                </div>
+                <div class="set-cell">
+                  <div class="set-cell-label">Set 4</div>
+                  <div class="set-cell-inputs">
+                    <input class="inp-c" placeholder="kg" readonly style="width:28px;" />
+                    <span class="sep-c">×</span>
+                    <input class="inp-c" placeholder="—" readonly style="width:22px;" />
+                  </div>
+                </div>
+              </div>
+              <div class="add-set-c">+ add set</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

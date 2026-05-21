@@ -1,5 +1,5 @@
 import { SCAN_HISTORY, TARGETS } from './profile.js';
-import { dbAdd, dbPut, dbGetAll, dbDelete } from './db.js';
+import { dbAdd, dbPut, dbGet, dbGetAll, dbDelete } from './db.js';
 
 let editingScan = null;
 
@@ -152,6 +152,17 @@ export async function renderBodyScan(container) {
   const prev = scans.length > 1 ? scans[scans.length - 2] : null;
   const es = editingScan;
 
+  const [apiKeyRecord, insightsRecord, progRecord] = await Promise.all([
+    dbGet('settings', 'anthropic_api_key'),
+    dbGet('settings', 'scan_insights'),
+    dbGet('settings', 'programme'),
+  ]);
+  const hasApiKey = !!(apiKeyRecord?.value);
+  const storedInsights = insightsRecord?.value;
+  const programme = progRecord?.value ?? 'A';
+
+  const insightsHtml = renderInsightsSectionHtml(latest, storedInsights, hasApiKey);
+
   container.innerHTML = `
     <div class="section-header">
       <h2>Body Scans</h2>
@@ -165,6 +176,10 @@ export async function renderBodyScan(container) {
 
     ${latest && !es ? renderLatestCard(latest, prev) : ''}
     ${latest && !es ? renderTargetsCard(latest) : ''}
+
+    <div class="card insights-card" id="insights-card">
+      ${insightsHtml}
+    </div>
 
     <div class="card" id="scan-form-card" style="${es ? '' : 'display:none'}">
       ${es ? `<div class="editing-banner">✏️ Editing scan from ${formatDate(es.date)} <button id="cancel-scan-edit" class="btn-cancel">Cancel</button></div>` : ''}
@@ -182,10 +197,36 @@ export async function renderBodyScan(container) {
   `;
 
   setupBodyScanEvents(container);
+  setupInsightsEvents(container, scans, latest, programme);
 
   if (es) {
     container.querySelector('#scan-form-card')?.scrollIntoView({ behavior: 'smooth' });
   }
+}
+
+function renderInsightsSectionHtml(latestScan, storedInsights, hasApiKey) {
+  if (!hasApiKey) {
+    return `
+      <div class="card-label">Monthly Programme Insights</div>
+      <div class="insights-setup">
+        <p>Add your <strong>Anthropic API key</strong> in Settings to get AI-generated monthly programme recommendations after each scan.</p>
+        <p class="muted" style="font-size:.78rem;margin-top:.3rem">Your key is stored only on this device and calls go directly to the Anthropic API. Cost is typically &lt;$0.01 per analysis.</p>
+      </div>`;
+  }
+  if (!latestScan) {
+    return `
+      <div class="card-label">Monthly Programme Insights</div>
+      <p class="muted">Add your first InBody scan to generate AI programme recommendations.</p>`;
+  }
+  if (!storedInsights || storedInsights.scanDate !== latestScan.date) {
+    return `
+      <div class="card-label">Monthly Programme Insights</div>
+      <div class="insights-cta">
+        <p>Latest scan data is ready. Generate your personalised programme recommendations for the next 30 days.</p>
+        <button class="btn-primary" id="generate-insights-btn">Generate Insights</button>
+      </div>`;
+  }
+  return renderInsightsCardHtml(storedInsights.insights, storedInsights.scanDate);
 }
 
 function renderLatestCard(latest, prev) {
@@ -438,7 +479,21 @@ function setupBodyScanEvents(container) {
       await dbAdd('bodyscans', scan);
       showToast('Scan saved!');
     }
-    renderBodyScan(container);
+
+    // Refresh page and auto-generate insights if API key is set
+    await renderBodyScan(container);
+    const allScans = await getAllScans();
+    const progRecord = await dbGet('settings', 'programme');
+    const programme = progRecord?.value ?? 'A';
+    generateAndStoreInsights(allScans[allScans.length - 1], allScans, programme, container);
+  });
+
+  // Manual generate button (shown when insights are stale or missing)
+  container.querySelector('#generate-insights-btn')?.addEventListener('click', async () => {
+    const allScans = await getAllScans();
+    const progRecord = await dbGet('settings', 'programme');
+    const programme = progRecord?.value ?? 'A';
+    generateAndStoreInsights(allScans[allScans.length - 1], allScans, programme, container);
   });
 
   container.querySelector('.scan-history')?.addEventListener('click', async e => {
@@ -457,6 +512,210 @@ function setupBodyScanEvents(container) {
       await dbDelete('bodyscans', +delBtn.dataset.id);
       renderBodyScan(container);
     }
+  });
+}
+
+// ── AI Insights engine ─────────────────────────────────────────────────────
+
+async function getApiKey() {
+  const s = await dbGet('settings', 'anthropic_api_key');
+  return s?.value || null;
+}
+
+function buildInsightsPrompt(scan, prevScan, allScans, programme) {
+  const df = v => v != null ? v : 'not measured';
+  const dlt = (c, p) => c != null && p != null ? ` (${c > p ? '+' : ''}${(c - p).toFixed(2)})` : '';
+
+  const segImbalance = (a, b) => a != null && b != null
+    ? ` · ${Math.abs(((a - b) / Math.max(a, b)) * 100).toFixed(1)}% imbalance` : '';
+
+  const trendLines = allScans.slice(-4).map(s =>
+    `  ${s.date}: ${s.weight}kg, SMM ${s.smm}kg, BF ${s.pbf}%, score ${s.inbodyScore}`
+  ).join('\n');
+
+  return `You are an elite fitness analyst for a calisthenics and strength athlete. Analyze the InBody scan and produce specific, honest programme recommendations for the next 30 days. Be direct — don't pad weaknesses.
+
+CURRENT SCAN (${scan.date}):
+Weight: ${df(scan.weight)}kg${dlt(scan.weight, prevScan?.weight)}
+SMM (Skeletal Muscle Mass): ${df(scan.smm)}kg${dlt(scan.smm, prevScan?.smm)}
+Body Fat %: ${df(scan.pbf)}%${dlt(scan.pbf, prevScan?.pbf)}
+Body Fat Mass: ${df(scan.bodyFatMass)}kg${dlt(scan.bodyFatMass, prevScan?.bodyFatMass)}
+InBody Score: ${df(scan.inbodyScore)}/100${dlt(scan.inbodyScore, prevScan?.inbodyScore)}
+BMR: ${df(scan.bmr)} kcal${dlt(scan.bmr, prevScan?.bmr)}
+Phase Angle: ${df(scan.phaseAngle)}°${dlt(scan.phaseAngle, prevScan?.phaseAngle)} (above 7.0 = excellent cellular health)
+ECW Ratio: ${df(scan.ecwRatio)} (above 0.390 = elevated inflammation/water retention)
+VFL: ${df(scan.vfl)} (above 10 = visceral fat concern)
+Protein Mass: ${df(scan.protein)}kg${dlt(scan.protein, prevScan?.protein)}
+BMI: ${df(scan.bmi)}
+
+Segmental Lean (SMM by body part):
+Right Arm: ${df(scan.rightArm)}kg | Left Arm: ${df(scan.leftArm)}kg${segImbalance(scan.rightArm, scan.leftArm)}
+Trunk: ${df(scan.trunk)}kg${dlt(scan.trunk, prevScan?.trunk)}
+Right Leg: ${df(scan.rightLeg)}kg | Left Leg: ${df(scan.leftLeg)}kg${segImbalance(scan.rightLeg, scan.leftLeg)}
+
+${allScans.length >= 2 ? `SCAN HISTORY (last ${Math.min(allScans.length, 4)} scans):\n${trendLines}` : 'FIRST SCAN — no historical comparison available'}
+
+CURRENT PROGRAMME: Programme ${programme} — calisthenics + strength hybrid (planche, front lever, muscle-up, handstand, pistol squat skill work, plus weighted strength and conditioning)
+
+ELITE TARGETS:
+InBody Score: 93 | SMM: 42kg | Body Fat: 9% | Phase Angle: 8.0° | BMR: 2000 kcal | Protein Mass: 15kg
+
+Based on this data, identify the weakest links holding back progress, what's working, and exactly what to adjust in training and nutrition for the next 30 days. Be specific — name exercises and protocols where possible.
+
+Respond with ONLY valid JSON (no markdown, no preamble), exactly this structure:
+{
+  "summary": "2-3 sentence honest assessment of current state and recent trajectory",
+  "key_findings": [
+    { "type": "strength", "label": "Short label", "detail": "One sentence" },
+    { "type": "weakness", "label": "Short label", "detail": "One sentence" },
+    { "type": "warning", "label": "Short label", "detail": "One sentence" },
+    { "type": "trend", "label": "Short label", "detail": "One sentence" }
+  ],
+  "priority_areas": [
+    { "area": "Area name", "why": "One sentence referencing a specific metric", "actions": ["Specific action 1", "Specific action 2", "Specific action 3"] }
+  ],
+  "programme_adjustments": [
+    { "change": "Specific training change", "rationale": "Why this addresses the scan findings" }
+  ],
+  "nutrition_notes": "Specific protein target, caloric approach, and timing based on current body composition and BMR",
+  "month_goal": "Single measurable target for next scan (e.g. SMM +0.5kg, BF -1.5%, score +3)"
+}`;
+}
+
+async function callClaude(prompt, apiKey) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-allow-browser': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-haiku-4-5-20251001',
+      max_tokens: 1500,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error?.message || `API error ${res.status}`);
+  }
+  const data = await res.json();
+  const text = data.content[0]?.text || '';
+  const m = text.match(/\{[\s\S]*\}/);
+  if (!m) throw new Error('No JSON returned from model');
+  return JSON.parse(m[0]);
+}
+
+async function generateAndStoreInsights(scan, allScans, programme, container) {
+  const apiKey = await getApiKey();
+  if (!apiKey) return;
+
+  const prevScan = allScans.length > 1 ? allScans[allScans.length - 2] : null;
+
+  // Show loading state in insights card
+  const card = container?.querySelector('#insights-card');
+  if (card) {
+    card.innerHTML = `
+      <div class="card-label">Monthly Programme Insights</div>
+      <div class="insights-loading">
+        <div class="insights-spinner"></div>
+        <span>Analysing scan with Claude…</span>
+      </div>`;
+  }
+
+  try {
+    const prompt = buildInsightsPrompt(scan, prevScan, allScans, programme);
+    const insights = await callClaude(prompt, apiKey);
+    await dbPut('settings', { key: 'scan_insights', value: { insights, scanDate: scan.date, generatedAt: new Date().toISOString() } });
+    if (card) card.innerHTML = renderInsightsCardHtml(insights, scan.date);
+    setupInsightsEvents(container, allScans, scan, programme);
+  } catch (err) {
+    if (card) {
+      card.innerHTML = `
+        <div class="card-label">Monthly Programme Insights</div>
+        <div class="insights-error">
+          <span class="badge danger">Error</span>
+          <span>${esc(err.message)}</span>
+          <button class="btn-secondary btn-sm" id="retry-insights">Retry</button>
+        </div>`;
+      container?.querySelector('#retry-insights')?.addEventListener('click', () => {
+        generateAndStoreInsights(scan, allScans, programme, container);
+      });
+    }
+  }
+}
+
+function renderInsightsCardHtml(insights, scanDate) {
+  if (!insights) return '';
+  const typeIcon = { strength: '✓', weakness: '↓', warning: '⚠', trend: '→' };
+  const typeCls  = { strength: 'success', weakness: 'danger', warning: 'warning', trend: 'info' };
+
+  return `
+    <div class="insights-header">
+      <div class="card-label">Monthly Programme Insights</div>
+      <div style="display:flex;align-items:center;gap:.5rem">
+        <span class="muted" style="font-size:.72rem">Based on scan ${scanDate}</span>
+        <button class="btn-secondary btn-sm" id="regenerate-insights">↺ Regenerate</button>
+      </div>
+    </div>
+
+    <p class="insights-summary">${esc(insights.summary)}</p>
+
+    ${insights.key_findings?.length ? `
+      <div class="insights-findings">
+        ${insights.key_findings.map(f => `
+          <div class="insight-finding type-${esc(f.type)}">
+            <span class="finding-icon badge ${typeCls[f.type] || 'info'}">${typeIcon[f.type] || '·'} ${esc(f.label)}</span>
+            <span class="finding-detail">${esc(f.detail)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+    ${insights.priority_areas?.length ? `
+      <div class="insights-block">
+        <div class="insights-block-title">Next 30 Days — Priority Areas</div>
+        ${insights.priority_areas.map((p, i) => `
+          <div class="priority-area">
+            <div class="priority-area-header">
+              <span class="priority-num">${i + 1}</span>
+              <div>
+                <strong>${esc(p.area)}</strong>
+                <div class="priority-why">${esc(p.why)}</div>
+              </div>
+            </div>
+            <ul class="priority-actions">
+              ${(p.actions || []).map(a => `<li>${esc(a)}</li>`).join('')}
+            </ul>
+          </div>`).join('')}
+      </div>` : ''}
+
+    ${insights.programme_adjustments?.length ? `
+      <div class="insights-block">
+        <div class="insights-block-title">Programme Adjustments</div>
+        ${insights.programme_adjustments.map(a => `
+          <div class="prog-adjustment">
+            <span class="adj-change">${esc(a.change)}</span>
+            <span class="adj-rationale">${esc(a.rationale)}</span>
+          </div>`).join('')}
+      </div>` : ''}
+
+    ${insights.nutrition_notes ? `
+      <div class="insights-block">
+        <div class="insights-block-title">Nutrition</div>
+        <p class="insights-nutrition">${esc(insights.nutrition_notes)}</p>
+      </div>` : ''}
+
+    ${insights.month_goal ? `
+      <div class="insights-goal">
+        <span class="insights-goal-label">Goal for next scan</span>
+        <strong>${esc(insights.month_goal)}</strong>
+      </div>` : ''}`;
+}
+
+function setupInsightsEvents(container, allScans, latestScan, programme) {
+  container?.querySelector('#regenerate-insights')?.addEventListener('click', () => {
+    generateAndStoreInsights(latestScan, allScans, programme, container);
   });
 }
 

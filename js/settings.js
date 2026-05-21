@@ -41,12 +41,14 @@ let openSections = new Set(['profile']);
 
 // ── Public API ─────────────────────────────────────────────────────────────
 export async function renderSettings(container) {
-  const [checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork, metaA, metaB] = await Promise.all([
+  const [checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork, metaA, metaB, apiKeyRecord] = await Promise.all([
     getChecklistItems(), getMorningRoutine(), getSupplements(),
     getProgrammeSchedule('A'), getProgrammeSchedule('B'),
     getTargets(), getUserProfile(), dbGetAll('bloodwork'),
     getProgrammeMeta('A'), getProgrammeMeta('B'),
+    dbGet('settings', 'anthropic_api_key'),
   ]);
+  const savedApiKey = apiKeyRecord?.value || '';
 
   container.innerHTML = `
     <div class="section-header">
@@ -54,6 +56,7 @@ export async function renderSettings(container) {
       <p class="muted">Customise everything · Changes save immediately</p>
     </div>
     ${section('profile',     '⚙️ Profile',             renderProfile(profile))}
+    ${section('aiInsights',  '🤖 AI Scan Insights',    renderAiInsights(savedApiKey))}
     ${section('checklist',   '☑️ Daily Checklist',      renderChecklist(checklistItems))}
     ${section('routine',     '🌅 Morning Routine',      renderRoutine(routineSteps))}
     ${section('supplements', '💊 Supplement Stack',     renderSupplements(supplements))}
@@ -65,7 +68,7 @@ export async function renderSettings(container) {
     ${section('data',        '📤 Data & Export',        renderData())}
   `;
 
-  setupEvents(container, { checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork });
+  setupEvents(container, { checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork, savedApiKey });
 }
 
 // ── Accordion wrapper ─────────────────────────────────────────────────────
@@ -353,6 +356,30 @@ function renderProgrammeUpload(metaA, metaB) {
     <button class="btn-secondary" id="download-prog-template" style="width:100%">⬇ Download JSON Template</button>`;
 }
 
+function renderAiInsights(apiKey) {
+  const masked = apiKey ? apiKey.slice(0, 7) + '···' + apiKey.slice(-4) : '';
+  return `
+    <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">
+      After each InBody scan, the app calls Claude to analyse your results and generate personalised programme adjustments for the next 30 days. Your key is stored only on this device.
+    </p>
+    <div class="form-group">
+      <label>Anthropic API Key</label>
+      <div style="display:flex;gap:.4rem">
+        <input type="password" id="ai-api-key" class="input-field" placeholder="sk-ant-…"
+          value="${apiKey || ''}" autocomplete="off" style="flex:1;font-family:monospace">
+        ${masked ? `<span class="muted" style="align-self:center;font-size:.78rem;font-family:monospace">${masked}</span>` : ''}
+      </div>
+      <small class="muted" style="font-size:.72rem;margin-top:.25rem;display:block">
+        Get your key at console.anthropic.com · Haiku model · &lt;$0.01 per analysis
+      </small>
+    </div>
+    <div style="display:flex;gap:.5rem;margin-top:.6rem">
+      <button class="btn-primary" id="save-api-key" style="flex:1">Save API Key</button>
+      ${apiKey ? '<button class="btn-danger btn-sm" id="clear-api-key">Clear</button>' : ''}
+    </div>
+    <div id="api-key-status" style="font-size:.82rem;margin-top:.35rem;min-height:1rem"></div>`;
+}
+
 function renderData() {
   return `
     <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">Export your data as a JSON backup, or import a backup from another device.</p>
@@ -393,6 +420,7 @@ function setupEvents(container, data) {
   });
 
   setupProfileEvents(container);
+  setupAiInsightsEvents(container);
   setupChecklistEvents(container, data.checklistItems);
   setupRoutineEvents(container, data.routineSteps);
   setupSuppEvents(container, data.supplements);
@@ -437,6 +465,26 @@ function setupProfileEvents(container) {
     clearTimeout(saveTimer);
     await dbPut('settings', { key: 'user_profile', value: readProfileForm(container) });
     showToast('Profile saved!');
+  });
+}
+
+// AI Insights
+function setupAiInsightsEvents(container) {
+  const statusEl = () => container.querySelector('#api-key-status');
+
+  container.querySelector('#save-api-key')?.addEventListener('click', async () => {
+    const key = container.querySelector('#ai-api-key')?.value?.trim();
+    if (!key) { if (statusEl()) { statusEl().textContent = 'Enter an API key first'; statusEl().style.color = 'var(--danger)'; } return; }
+    await dbPut('settings', { key: 'anthropic_api_key', value: key });
+    if (statusEl()) { statusEl().textContent = '✓ API key saved'; statusEl().style.color = 'var(--success)'; }
+    showToast('API key saved');
+    setTimeout(() => renderSettings(container), 800);
+  });
+
+  container.querySelector('#clear-api-key')?.addEventListener('click', async () => {
+    await dbPut('settings', { key: 'anthropic_api_key', value: '' });
+    showToast('API key cleared');
+    renderSettings(container);
   });
 }
 

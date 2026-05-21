@@ -1,0 +1,225 @@
+<h2>Today tab — how should it be laid out?</h2>
+<p class="subtitle">You open the app to log. How do you want to land?</p>
+
+<style>
+* { box-sizing: border-box; }
+.phone-wrap { display: flex; justify-content: center; margin-top: 12px; }
+
+/* Carbon theme vars */
+.p { background: #111114; border: 2px solid #303038; border-radius: 26px; width: 210px; font-family: -apple-system, sans-serif; overflow: hidden; }
+.ph { background: #1a1a1f; border-bottom: 1px solid #303038; padding: 9px 12px; font-size: 10px; font-weight: 700; color: #ff8c42; display:flex; justify-content:space-between; align-items:center; }
+.pc { padding: 9px; display: flex; flex-direction: column; gap: 6px; overflow: hidden; }
+.pn { background: #1a1a1f; border-top: 1px solid #303038; display: flex; padding: 5px 0 9px; }
+.nb { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px; color: #606070; font-size: 7px; }
+.nb.on { color: #ff8c42; }
+.ni { font-size: 12px; }
+
+.card { background: #1a1a1f; border: 1px solid #303038; border-radius: 9px; padding: 8px 10px; }
+.label { font-size: 7px; color: #606070; text-transform: uppercase; letter-spacing: .5px; margin-bottom: 5px; }
+.exname { font-size: 10px; font-weight: 700; color: #e8e8e8; }
+.target { font-size: 8px; color: #ff8c42; font-weight: 600; }
+.row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 5px; }
+.stag { display: inline-block; font-size: 6px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; border-radius: 3px; padding: 1px 5px; background: #ff8c4218; color: #ff8c42; border: 1px solid #ff8c4233; margin-bottom: 5px; }
+
+.tile { background: #ffd16608; border: 1px solid #ffd16633; border-radius: 7px; padding: 5px 7px; display: flex; align-items: center; gap: 5px; margin-bottom: 3px; }
+.tile.empty { background: transparent; border-color: #303038; }
+.tile-inp { background: #111114; border: 1px solid #ffd16633; border-radius: 4px; color: #ffd166; font-size: 9px; font-weight: 700; padding: 2px 0; text-align: center; width: 34px; }
+.tile-inp.e { border-color: #303038; color: #e8e8e8; }
+.tick { width: 16px; height: 16px; border-radius: 50%; background: #ff8c42; color: #fff; font-size: 8px; display: flex; align-items: center; justify-content: center; font-weight: 800; margin-left: auto; flex-shrink: 0; }
+.untick { width: 16px; height: 16px; border-radius: 50%; border: 1.5px solid #303038; margin-left: auto; flex-shrink: 0; }
+.snum { font-size: 7px; color: #606070; min-width: 13px; }
+.sx { font-size: 7px; color: #303038; }
+
+.bar { height: 3px; background: #222228; border-radius: 3px; margin-top: 5px; }
+.bar-fill { height: 100%; background: linear-gradient(90deg, #ff8c42, #ffd166); border-radius: 3px; }
+
+.chk { display: flex; align-items: center; gap: 5px; font-size: 8px; padding: 2px 0; }
+.chk + .chk { border-top: 1px solid #222228; padding-top: 3px; margin-top: 1px; }
+.chkbox { width: 10px; height: 10px; border-radius: 2px; border: 1.5px solid #303038; flex-shrink: 0; }
+.chkbox.done { background: #ff8c42; border-color: #ff8c42; }
+.chk.done span { color: #606070; text-decoration: line-through; }
+.chk span { color: #e8e8e8; }
+
+.ctrl { display: flex; gap: 4px; flex-wrap: wrap; margin-bottom: 6px; }
+.ctrl-pill { background: #222228; border: 1px solid #303038; border-radius: 20px; padding: 2px 7px; font-size: 7px; color: #e8e8e8; }
+.ctrl-pill.on { border-color: #ff8c4244; color: #ff8c42; background: #ff8c4210; }
+
+.focus-line { font-size: 9px; color: #e8e8e8; font-weight: 600; margin-bottom: 2px; }
+.focus-sub { font-size: 7px; color: #606070; margin-bottom: 6px; }
+
+.tab-strip { display: flex; gap: 3px; margin-bottom: 6px; }
+.tab-pill { flex: 1; text-align: center; font-size: 7px; padding: 3px 0; border-radius: 20px; border: 1px solid #303038; color: #606070; background: #222228; }
+.tab-pill.on { background: #ff8c4218; border-color: #ff8c4244; color: #ff8c42; font-weight: 700; }
+</style>
+
+<div class="options" style="grid-template-columns: repeat(3, 1fr);">
+
+  <!-- A: Session-first, checklist collapsed at bottom -->
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Session first</h3>
+      <p>Open straight into today's workout blocks. Checklist is a card below — scroll to it after training.</p>
+      <div class="phone-wrap">
+        <div class="p">
+          <div class="ph"><span>MyStats</span><span style="font-size:8px;color:#ffd166;">Day 1 · Week 1</span></div>
+          <div class="pc">
+            <!-- thin control row -->
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div class="ctrl">
+                <span class="ctrl-pill on">Prog A</span>
+                <span class="ctrl-pill on">W1</span>
+                <span class="ctrl-pill on">Mon</span>
+              </div>
+              <div style="font-size:7px;color:#ff8c42;font-weight:700;">45% ▓▓░</div>
+            </div>
+            <div class="card">
+              <div class="stag">Strength</div>
+              <div class="row">
+                <span class="exname">Weighted pull-up</span>
+                <span class="target">4×6</span>
+              </div>
+              <div class="tile">
+                <span class="snum">S1</span>
+                <input class="tile-inp" value="10" readonly /><span class="sx">×</span>
+                <input class="tile-inp" style="width:26px;" value="6" readonly />
+                <div class="tick">✓</div>
+              </div>
+              <div class="tile empty">
+                <span class="snum">S2</span>
+                <input class="tile-inp e" placeholder="kg" readonly /><span class="sx">×</span>
+                <input class="tile-inp e" style="width:26px;" placeholder="—" readonly />
+                <div class="untick"></div>
+              </div>
+              <div class="bar"><div class="bar-fill" style="width:25%;"></div></div>
+            </div>
+            <div class="card" style="opacity:.6;">
+              <div class="label">Checklist · 3/6 ↓ scroll</div>
+              <div class="chk done"><div class="chkbox done"></div><span>Morning CARs</span></div>
+              <div class="chk"><div class="chkbox"></div><span>Protein 165g</span></div>
+            </div>
+          </div>
+          <div class="pn">
+            <div class="nb on"><span class="ni">🏠</span><span>Today</span></div>
+            <div class="nb"><span class="ni">💪</span><span>Train</span></div>
+            <div class="nb"><span class="ni">🏃</span><span>Run</span></div>
+            <div class="nb"><span class="ni">📊</span><span>Body</span></div>
+            <div class="nb"><span class="ni">⚙️</span><span>Setup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- B: Tabs — Session | Checklist | Supplements -->
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>Tabs within Today</h3>
+      <p>Horizontal tabs: Session / Checklist / Supps. Everything at one tap, no scrolling between sections.</p>
+      <div class="phone-wrap">
+        <div class="p">
+          <div class="ph"><span>MyStats</span><span style="font-size:8px;color:#ffd166;">Day 1 · Strength A</span></div>
+          <div class="pc">
+            <div class="tab-strip">
+              <div class="tab-pill on">Session</div>
+              <div class="tab-pill">Checklist</div>
+              <div class="tab-pill">Supps</div>
+            </div>
+            <div class="card">
+              <div class="stag">Strength</div>
+              <div class="row">
+                <span class="exname">Weighted pull-up</span>
+                <span class="target">4×6</span>
+              </div>
+              <div class="tile">
+                <span class="snum">S1</span>
+                <input class="tile-inp" value="10" readonly /><span class="sx">×</span>
+                <input class="tile-inp" style="width:26px;" value="6" readonly />
+                <div class="tick">✓</div>
+              </div>
+              <div class="tile empty">
+                <span class="snum">S2</span>
+                <input class="tile-inp e" placeholder="kg" readonly /><span class="sx">×</span>
+                <input class="tile-inp e" style="width:26px;" placeholder="—" readonly />
+                <div class="untick"></div>
+              </div>
+            </div>
+            <div class="card">
+              <div class="stag">Core</div>
+              <div class="chk done"><div class="chkbox done"></div><span>Hanging leg raise</span></div>
+              <div class="chk"><div class="chkbox"></div><span>Ab wheel rollout</span></div>
+            </div>
+          </div>
+          <div class="pn">
+            <div class="nb on"><span class="ni">🏠</span><span>Today</span></div>
+            <div class="nb"><span class="ni">💪</span><span>Train</span></div>
+            <div class="nb"><span class="ni">🏃</span><span>Run</span></div>
+            <div class="nb"><span class="ni">📊</span><span>Body</span></div>
+            <div class="nb"><span class="ni">⚙️</span><span>Setup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- C: Smart daily card — checklist at top, session below -->
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Daily card first</h3>
+      <p>Compact checklist bar at top (always visible), then session blocks below. Whole day in one scroll.</p>
+      <div class="phone-wrap">
+        <div class="p">
+          <div class="ph"><span>MyStats</span><span style="font-size:8px;color:#ffd166;">Wed · Week 2</span></div>
+          <div class="pc">
+            <!-- sticky checklist bar -->
+            <div style="background:#222228;border:1px solid #303038;border-radius:8px;padding:6px 8px;">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+                <span style="font-size:7px;color:#606070;text-transform:uppercase;letter-spacing:.5px;">Daily · 3/6</span>
+                <span style="font-size:7px;color:#ff8c42;font-weight:700;">50%</span>
+              </div>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <div style="font-size:9px;padding:2px 6px;background:#ff8c4218;border:1px solid #ff8c4244;border-radius:20px;color:#ff8c42;">🌅✓</div>
+                <div style="font-size:9px;padding:2px 6px;background:#ff8c4218;border:1px solid #ff8c4244;border-radius:20px;color:#ff8c42;">💊✓</div>
+                <div style="font-size:9px;padding:2px 6px;background:#ff8c4218;border:1px solid #ff8c4444;border-radius:20px;color:#ff8c42;">💪✓</div>
+                <div style="font-size:9px;padding:2px 6px;background:#222228;border:1px solid #303038;border-radius:20px;color:#606070;">🥩</div>
+                <div style="font-size:9px;padding:2px 6px;background:#222228;border:1px solid #303038;border-radius:20px;color:#606070;">😴</div>
+              </div>
+            </div>
+            <!-- session below -->
+            <div class="card">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:4px;">
+                <div>
+                  <div class="focus-line">Strength A · Day 1</div>
+                  <div class="focus-sub">Back, biceps + power</div>
+                </div>
+                <span style="font-size:8px;color:#ffd166;font-weight:700;">1/4 ✓</span>
+              </div>
+              <div class="tile">
+                <span class="snum">S1</span>
+                <input class="tile-inp" value="10" readonly /><span class="sx">×</span>
+                <input class="tile-inp" style="width:26px;" value="6" readonly />
+                <div class="tick">✓</div>
+              </div>
+              <div class="tile empty">
+                <span class="snum">S2</span>
+                <input class="tile-inp e" placeholder="kg" readonly /><span class="sx">×</span>
+                <input class="tile-inp e" style="width:26px;" placeholder="—" readonly />
+                <div class="untick"></div>
+              </div>
+            </div>
+          </div>
+          <div class="pn">
+            <div class="nb on"><span class="ni">🏠</span><span>Today</span></div>
+            <div class="nb"><span class="ni">💪</span><span>Train</span></div>
+            <div class="nb"><span class="ni">🏃</span><span>Run</span></div>
+            <div class="nb"><span class="ni">📊</span><span>Body</span></div>
+            <div class="nb"><span class="ni">⚙️</span><span>Setup</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>

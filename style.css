@@ -870,3 +870,7 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 }
 .str-tick-btn.is-done { background: var(--accent); border-color: var(--accent); color: #fff; }
 .str-tick-btn:active { transform: scale(.92); }
+
+/* ── Session panel — condensed ── */
+.session-title { font-size: .95rem; font-weight: 700; color: var(--text); }
+.session-card { padding: .75rem; }

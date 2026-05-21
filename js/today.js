@@ -339,25 +339,18 @@ function renderSessionPanel(session, isRest, progress, mobility) {
     <div class="card session-card ${isRest ? 'rest-day' : ''}">
       <div class="card-header-row">
         <div>
-          <h3>${esc(session.label || 'Rest Day')}</h3>
+          <div class="session-title">${esc(session.label || 'Rest Day')}</div>
           ${session.focus ? `<div class="session-focus">${esc(session.focus)}</div>` : ''}
         </div>
-        <div class="session-status-col">
-          ${todayWorkoutId ? '<span class="badge info">✓ Saved</span>' : ''}
-          ${progress && progress.total > 0 ? `
-            <div class="session-progress">
-              <div class="prog-bar-track"><div class="prog-bar-fill" style="width:${progress.pct}%"></div></div>
-              <span class="prog-pct">${progress.pct}%</span>
-            </div>` : ''}
-        </div>
+        ${progress && progress.total > 0 ? `
+          <div class="session-progress">
+            <div class="prog-bar-track"><div class="prog-bar-fill" style="width:${progress.pct}%"></div></div>
+            <span class="prog-pct">${progress.pct}%</span>
+          </div>` : todayWorkoutId ? '<span class="badge info">✓ Saved</span>' : ''}
       </div>
       ${isRest ? `
         <p class="muted" style="margin-top:.75rem">Rest day. Recover well — gains happen during rest.</p>
       ` : `
-        <div class="pre-training-nudge">
-          <span class="badge warning">⚡ Pre-training:</span>
-          ${PRE_TRAINING.map(p => `<span class="pre-item">${esc(p)}</span>`).join('')}
-        </div>
         <div id="session-blocks">
           ${currentBlocks.map(renderBlock).join('')}
         </div>
@@ -365,13 +358,6 @@ function renderSessionPanel(session, isRest, progress, mobility) {
           ${todayWorkoutId ? '✓ Update Session' : 'Save Session'}
         </button>
       `}
-    </div>
-    ${mobility ? `
-    <div class="card mobility-card">
-      <div class="card-label">Mobility — ${DAY_LABELS[selectedDay]}</div>
-      <h3>${esc(mobility.label)}</h3>
-      <p class="muted">${esc(mobility.duration)} · ${esc(mobility.focus)}</p>
-    </div>` : ''}
   `;
 }
 

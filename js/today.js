@@ -394,9 +394,9 @@ function renderChecklistPanel(checklistItems, checklist) {
 
 function renderSuppsPanel(allSupplements) {
   const groups = [
+    { label: 'Pre-training',        filter: s => /pre.?train|pre.?workout/i.test(s.timing) },
     { label: 'Morning — fasted',    filter: s => /^morning/i.test(s.timing) && !s.withFat },
     { label: 'Morning — with fat',  filter: s => /^morning/i.test(s.timing) && s.withFat },
-    { label: 'Pre-training',        filter: s => /pre.?train|pre.?workout/i.test(s.timing) },
     { label: 'With meals',          filter: s => /meal|lunch/i.test(s.timing) && !/morning|evening|bed/i.test(s.timing) },
     { label: 'Evening',             filter: s => /evening/i.test(s.timing) },
     { label: 'Before bed',          filter: s => /bed/i.test(s.timing) },
@@ -652,8 +652,9 @@ function markApplyPending(container) {
 function refreshProgress(container) {
   const progress = sessionProgress();
   if (!progress || progress.total === 0) return;
-  const fill = container.querySelector('.prog-bar-fill');
-  const pct = container.querySelector('.prog-pct');
+  const panel = container.querySelector('#today-panel-session');
+  const fill = panel?.querySelector('.prog-bar-fill');
+  const pct  = panel?.querySelector('.prog-pct');
   if (fill) fill.style.width = progress.pct + '%';
   if (pct)  pct.textContent = progress.pct + '%';
 }

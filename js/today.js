@@ -290,8 +290,12 @@ function renderCircuitBlock(block) {
 function renderMobilityBlock(block) {
   return `
     <div class="session-block mobility-ref-block">
-      <span class="block-type-tag type-mobility">Mobility</span>
-      <span class="block-note">${esc(block.label)}</span>
+      <div class="block-header-row">
+        <span class="block-type-tag type-mobility">Mobility</span>
+        ${block.duration ? `<span class="block-note">${esc(block.duration)}</span>` : ''}
+      </div>
+      <div class="mobility-label">${esc(block.label)}</div>
+      ${block.focus ? `<div class="mobility-focus muted">${esc(block.focus)}</div>` : ''}
     </div>`;
 }
 
@@ -350,10 +354,12 @@ function renderSessionPanel(session, isRest, progress, mobility) {
       </div>
       ${isRest ? `
         <p class="muted" style="margin-top:.75rem">Rest day. Recover well — gains happen during rest.</p>
+        ${mobility ? renderMobilityBlock({ ...mobility, type: 'mobility' }) : ''}
       ` : `
         <div id="session-blocks">
           ${currentBlocks.map(renderBlock).join('')}
         </div>
+        ${mobility && !currentBlocks.some(b => b.type === 'mobility') ? renderMobilityBlock({ ...mobility, type: 'mobility' }) : ''}
         <button id="save-today-log" class="btn-primary" style="margin-top:1rem">
           ${todayWorkoutId ? '✓ Update Session' : 'Save Session'}
         </button>

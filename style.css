@@ -706,7 +706,9 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 .circuit-round-btn.is-done { background: #ff9a0018; border-color: #ff9a0066; color: #ffb84d; font-weight: 600; }
 
 /* Mobility ref block */
-.mobility-ref-block { display: flex; align-items: center; gap: .5rem; }
+.mobility-ref-block { display: flex; flex-direction: column; gap: .35rem; }
+.mobility-label { font-size: .9rem; font-weight: 600; color: var(--text); }
+.mobility-focus { font-size: .8rem; margin-top: .1rem; }
 
 @media (max-width: 400px) {
   .str-set-row .note-in { display: none; }

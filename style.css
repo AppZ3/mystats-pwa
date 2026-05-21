@@ -2,18 +2,18 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
 :root {
-  --bg: #0a0a0f;
-  --bg2: #12121c;
-  --bg3: #1a1a28;
-  --card: #14141f;
-  --border: #2a2a3e;
-  --accent: #6c63ff;
-  --accent2: #00d4aa;
+  --bg: #111114;
+  --bg2: #18181c;
+  --bg3: #222228;
+  --card: #1a1a1f;
+  --border: #303038;
+  --accent: #ff8c42;
+  --accent2: #ffd166;
   --danger: #ff6b6b;
   --warn: #ffd700;
-  --text: #e8e8f0;
-  --muted: #7070a0;
-  --success: #00d4aa;
+  --text: #e8e8e8;
+  --muted: #606070;
+  --success: #ffd166;
   --nav-h: 64px;
   --header-h: 56px;
   --radius: 14px;

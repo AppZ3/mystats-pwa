@@ -1,5 +1,5 @@
 const DB_NAME = 'mystats';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 let db;
 
@@ -32,6 +32,17 @@ export function initDB() {
       if (!d.objectStoreNames.contains('bloodwork')) {
         const bw = d.createObjectStore('bloodwork', { keyPath: 'id', autoIncrement: true });
         bw.createIndex('date', 'date');
+      }
+      // NEW — Training journal entries
+      if (!d.objectStoreNames.contains('journal')) {
+        const jn = d.createObjectStore('journal', { keyPath: 'id', autoIncrement: true });
+        jn.createIndex('date', 'date');
+      }
+      // NEW — Personal records
+      if (!d.objectStoreNames.contains('prs')) {
+        const pr = d.createObjectStore('prs', { keyPath: 'id', autoIncrement: true });
+        pr.createIndex('exercise', 'exercise');
+        pr.createIndex('date', 'date');
       }
     };
     req.onsuccess = e => { db = e.target.result; resolve(db); };
@@ -89,6 +100,17 @@ export function dbClear(store) {
     req.onsuccess = () => resolve();
     req.onerror = () => reject(req.error);
   });
+}
+
+// "YYYY-MM-DD" using the *local* calendar date (not UTC) — UTC drifts a day off
+// local midnight for any timezone ahead of UTC (e.g. AEST), which broke streaks,
+// journal dates, and PR dates whenever they used `new Date().toISOString()`.
+export function localDateStr(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+export function todayStr() {
+  return localDateStr(new Date());
 }
 
 export function esc(s) {

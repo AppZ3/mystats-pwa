@@ -1,8 +1,7 @@
-import { dbAdd, dbPut, dbGetAll, dbDelete } from './db.js';
+import { dbAdd, dbPut, dbGetAll, dbDelete, todayStr } from './db.js';
 
 let editingRun = null; // null = new, object = editing
 
-function todayStr() { return new Date().toISOString().split('T')[0]; }
 function formatDate(d) { return new Date(d).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 function parseDuration(str) {

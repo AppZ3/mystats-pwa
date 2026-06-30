@@ -1,11 +1,23 @@
 import { ALL_EXERCISES, SKILL_PROGRESSIONS } from './profile.js';
-import { dbAdd, dbPut, dbGetAll, dbDelete, esc } from './db.js';
+import { dbAdd, dbPut, dbGetAll, dbDelete, esc, todayStr } from './db.js';
 
 let currentSession = { date: '', exercises: [] };
 let editingWorkoutId = null;
+let cachedWorkouts = [];
 
-function todayStr() { return new Date().toISOString().split('T')[0]; }
 function formatDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
+
+function getPrevExercise(name) {
+  const refDate = currentSession.date || todayStr();
+  const sorted = cachedWorkouts
+    .filter(w => w.id !== editingWorkoutId && w.date <= refDate)
+    .sort((a, b) => b.date.localeCompare(a.date));
+  for (const w of sorted) {
+    const ex = w.exercises?.find(e => e.name === name);
+    if (ex?.sets?.length) return { date: w.date, sets: ex.sets };
+  }
+  return null;
+}
 
 export async function renderWorkout(container) {
   if (!editingWorkoutId && currentSession.exercises.length === 0) {
@@ -13,6 +25,7 @@ export async function renderWorkout(container) {
   }
 
   const allWorkouts = await dbGetAll('workouts');
+  cachedWorkouts = allWorkouts;
   const recent = allWorkouts
     .filter(w => w.source !== 'today-log')
     .sort((a, b) => b.date.localeCompare(a.date))
@@ -96,28 +109,38 @@ function renderSessionExercises() {
     el.innerHTML = '<p class="muted" style="margin:.5rem 0">Search above to add exercises</p>';
     return;
   }
-  el.innerHTML = currentSession.exercises.map((ex, ei) => `
+  el.innerHTML = currentSession.exercises.map((ex, ei) => {
+    const prev = getPrevExercise(ex.name);
+    const prevLabel = prev ? `<span class="prev-ex-label">prev ${formatDate(prev.date)}</span>` : '';
+    return `
     <div class="session-ex" data-ei="${ei}">
       <div class="session-ex-header">
         <strong>${esc(ex.name)}</strong>
+        ${prevLabel}
         <button class="btn-icon remove-ex" data-ei="${ei}" aria-label="Remove ${esc(ex.name)}">✕</button>
       </div>
       <div class="sets-list">
-        ${ex.sets.map((s, si) => `
+        ${ex.sets.map((s, si) => {
+          const ps = prev?.sets[si];
+          const prevStr = ps ? (ps.weight ? `${ps.weight}×${ps.reps || '?'}` : ps.reps ? `${ps.reps}r` : ps.note || '') : '';
+          return `
           <div class="set-row" data-si="${si}" data-ei="${ei}">
             <span class="set-num">Set ${si + 1}</span>
             <input type="number" class="set-input weight-in" placeholder="kg" value="${s.weight || ''}" min="0" step="0.5" data-field="weight" data-ei="${ei}" data-si="${si}">
             <span class="set-sep">×</span>
             <input type="number" class="set-input reps-in" placeholder="reps" value="${s.reps || ''}" min="1" data-field="reps" data-ei="${ei}" data-si="${si}">
             <input type="text" class="set-input note-in" placeholder="note" value="${esc(s.note || '')}" data-field="note" data-ei="${ei}" data-si="${si}">
+            ${prevStr
+              ? `<button class="btn-prev-copy" data-weight="${ps.weight || ''}" data-reps="${ps.reps || ''}" data-ei="${ei}" data-si="${si}" title="Copy from previous">${prevStr}</button>`
+              : `<span class="prev-dash">—</span>`}
             <button class="btn-icon remove-set" data-ei="${ei}" data-si="${si}">−</button>
           </div>
-        `).join('')}
+        `}).join('')}
         <button class="btn-add-set" data-ei="${ei}">+ Add Set</button>
       </div>
       <input type="text" class="input-field" style="margin-top:.35rem;font-size:.83rem" placeholder="Exercise notes..." value="${esc(ex.notes || '')}" data-ei="${ei}" id="ex-notes-${ei}">
     </div>
-  `).join('');
+  `}).join('');
 
   el.querySelectorAll('.set-input').forEach(input => {
     input.addEventListener('input', () => {
@@ -135,6 +158,16 @@ function renderSessionExercises() {
   el.querySelectorAll('.btn-add-set').forEach(btn => {
     btn.addEventListener('click', () => {
       currentSession.exercises[+btn.dataset.ei].sets.push({ weight: null, reps: null, note: '' });
+      renderSessionExercises();
+    });
+  });
+
+  el.querySelectorAll('.btn-prev-copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const { ei, si, weight, reps } = btn.dataset;
+      const set = currentSession.exercises[+ei].sets[+si];
+      if (weight) set.weight = parseFloat(weight);
+      if (reps) set.reps = parseFloat(reps);
       renderSessionExercises();
     });
   });

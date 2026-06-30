@@ -1,7 +1,8 @@
 import { SCAN_HISTORY, TARGETS } from './profile.js';
-import { dbAdd, dbPut, dbGet, dbGetAll, dbDelete } from './db.js';
+import { dbAdd, dbPut, dbGet, dbGetAll, dbDelete, esc, todayStr } from './db.js';
 
 let editingScan = null;
+let addingNewScan = false;
 
 // ── Image compression ─────────────────────────────────────────────────────
 
@@ -11,8 +12,8 @@ async function compressImageForVision(file) {
     const url = URL.createObjectURL(file);
     img.onload = () => {
       URL.revokeObjectURL(url);
-      // Resize to max 1600px on longest side — enough for Claude to read all text
-      const MAX = 1600;
+      // 2048px max — InBody printouts have small dense text; higher res = more accurate reads
+      const MAX = 2048;
       let { width, height } = img;
       if (width > MAX || height > MAX) {
         if (width > height) { height = Math.round(height * MAX / width); width = MAX; }
@@ -21,7 +22,8 @@ async function compressImageForVision(file) {
       const canvas = document.createElement('canvas');
       canvas.width = width; canvas.height = height;
       canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Image compression failed')), 'image/jpeg', 0.88);
+      // 0.95 quality — preserve fine detail on numbers and decimal points
+      canvas.toBlob(blob => blob ? resolve(blob) : reject(new Error('Image compression failed')), 'image/jpeg', 0.95);
     };
     img.onerror = () => { URL.revokeObjectURL(url); reject(new Error('Could not load image')); };
     img.src = url;
@@ -32,11 +34,9 @@ async function compressImageForVision(file) {
 
 async function extractWithClaudeVision(file, apiKey, setStatus) {
   setStatus('loading', 'Compressing image…', 10);
-
-  // Compress to keep request small and fast
   const compressed = await compressImageForVision(file);
 
-  setStatus('loading', 'Reading image…', 25);
+  setStatus('loading', 'Preparing image…', 25);
   const base64 = await new Promise((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result.split(',')[1]);
@@ -44,73 +44,104 @@ async function extractWithClaudeVision(file, apiKey, setStatus) {
     reader.readAsDataURL(compressed);
   });
 
-  const mediaType = 'image/jpeg'; // always JPEG after compression
-
   setStatus('loading', 'Analysing scan with Claude…', 40);
 
-  const prompt = `This is an InBody body composition scan result. Extract every numeric value visible and return ONLY valid JSON using these exact field names (null for any not found):
+  const prompt = `You are reading an InBody body composition scan printout. InBody scans have a specific layout:
+- Top: patient name, date (look carefully for DD/MM/YYYY or YYYY-MM-DD formats), ID
+- Body Composition Analysis section: columns for Total Body Water (L), Protein (kg), Minerals (kg), Body Fat Mass (kg), Weight (kg)
+- Muscle-Fat Analysis: Weight, Skeletal Muscle Mass (SMM in kg), Body Fat Mass (kg)
+- Obesity Analysis: BMI, Percent Body Fat (PBF %)
+- Segmental Lean Analysis table: Right Arm / Left Arm / Trunk / Right Leg / Left Leg — read the LEAN MASS values in kg (not %)
+- ECW/TBW ratio (a decimal like 0.380)
+- InBody Score (a number out of 100)
+- BMR in kcal
+- Phase Angle in degrees (e.g. 6.2°) — may be in Research Parameters section
+- Visceral Fat Level (VFL) — an integer like 4 or 7
 
-{
-  "date": "YYYY-MM-DD or null",
-  "weight": null,
-  "smm": null,
-  "pbf": null,
-  "bodyFatMass": null,
-  "bmi": null,
-  "vfl": null,
-  "vfa": null,
-  "phaseAngle": null,
-  "bmr": null,
-  "inbodyScore": null,
-  "tbw": null,
-  "protein": null,
-  "minerals": null,
-  "ecwRatio": null,
-  "ffmi": null,
-  "whr": null,
-  "bmc": null,
-  "rightArm": null,
-  "leftArm": null,
-  "trunk": null,
-  "rightLeg": null,
-  "leftLeg": null
-}
+Extract every value you can see and return ONLY a valid JSON object with exactly these field names (use null for anything not visible or not present):
 
-Key mappings: smm = Skeletal Muscle Mass (kg), pbf = Body Fat % (PBF), vfl = Visceral Fat Level, phaseAngle = Phase Angle in degrees, bmr = BMR in kcal, tbw = Total Body Water (L), ecwRatio = ECW/TBW ratio, rightArm/leftArm/trunk/rightLeg/leftLeg = segmental lean mass in kg. Return ONLY the JSON object, no explanation.`;
+{"date":"YYYY-MM-DD or null","weight":null,"smm":null,"pbf":null,"bodyFatMass":null,"bmi":null,"vfl":null,"vfa":null,"phaseAngle":null,"bmr":null,"inbodyScore":null,"tbw":null,"protein":null,"minerals":null,"ecwRatio":null,"ffmi":null,"whr":null,"bmc":null,"rightArm":null,"leftArm":null,"trunk":null,"rightLeg":null,"leftLeg":null}
 
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-allow-browser': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 800,
-      messages: [{
-        role: 'user',
-        content: [
-          { type: 'image', source: { type: 'base64', media_type: mediaType, data: base64 } },
-          { type: 'text', text: prompt },
-        ],
-      }],
-    }),
-  });
+Rules:
+- All numeric values must be numbers, not strings
+- ecwRatio is a decimal (e.g. 0.380), not a percentage
+- pbf is a percentage number (e.g. 18.5), not a decimal
+- For segmental values use lean mass kg, not percentage bars
+- If a value appears twice (e.g. in two sections), use the more prominent/labelled one
+- Return ONLY the JSON — no explanation, no markdown, no code fences`;
+
+  let res;
+  try {
+    res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1024,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: base64 } },
+            { type: 'text', text: prompt },
+          ],
+        }],
+      }),
+    });
+  } catch (netErr) {
+    throw new Error(`Network error reaching proxy: ${netErr.message}`);
+  }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.error?.message || `API error ${res.status}`);
+    const errBody = await res.json().catch(() => ({}));
+    const msg = errBody.error?.message || `HTTP ${res.status}`;
+    if (res.status === 401) throw new Error('API key invalid or expired — check your key in Settings.');
+    if (res.status === 429) throw new Error('Rate limited — wait a moment and try again.');
+    throw new Error(`API error: ${msg}`);
   }
 
   const data = await res.json();
-  const text = data.content[0]?.text || '';
-  const m = text.match(/\{[\s\S]*\}/);
-  if (!m) throw new Error('Claude could not parse scan data from this image');
+  const text = (data.content?.[0]?.text || '').trim();
+
+  // Handle markdown code fences (```json ... ``` or ``` ... ```)
+  const fenceMatch = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+  const jsonStr = fenceMatch ? fenceMatch[1].trim() : text;
+
+  const objMatch = jsonStr.match(/\{[\s\S]*\}/);
+  if (!objMatch) throw new Error('Claude could not find scan values in this image. Try a clearer photo with good lighting.');
 
   setStatus('loading', 'Parsing values…', 95);
-  return JSON.parse(m[0]);
+
+  let parsed;
+  try {
+    parsed = JSON.parse(objMatch[0]);
+  } catch {
+    throw new Error('Could not read the scan response. Try again or use a clearer image.');
+  }
+
+  // Sanity-check values — reject obvious misreads
+  const checks = {
+    weight:      [20, 300],
+    smm:         [5, 80],
+    pbf:         [1, 70],
+    bodyFatMass: [1, 150],
+    bmi:         [10, 70],
+    inbodyScore: [0, 100],
+    phaseAngle:  [1, 15],
+    ecwRatio:    [0.3, 0.5],
+    bmr:         [500, 5000],
+    vfl:         [1, 30],
+  };
+  for (const [field, [min, max]] of Object.entries(checks)) {
+    if (parsed[field] != null && (parsed[field] < min || parsed[field] > max)) {
+      parsed[field] = null; // discard implausible value rather than show garbage
+    }
+  }
+
+  return parsed;
 }
 
 // ── File → text extraction (PDF / Tesseract fallback) ──────────────────────
@@ -247,7 +278,6 @@ function extractDateFromText(text) {
   return null;
 }
 
-function todayStr() { return new Date().toISOString().split('T')[0]; }
 function formatDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' }); }
 
 function delta(curr, prev) {
@@ -276,6 +306,7 @@ export async function renderBodyScan(container) {
   const latest = scans[scans.length - 1];
   const prev = scans.length > 1 ? scans[scans.length - 2] : null;
   const es = editingScan;
+  const showForm = addingNewScan || !!es;
 
   const [insightsRecord, progRecord] = await Promise.all([
     dbGet('settings', 'scan_insights'),
@@ -290,17 +321,17 @@ export async function renderBodyScan(container) {
   container.innerHTML = `
     <div class="section-header">
       <h2>Body Scans</h2>
-      <button class="btn-primary btn-sm" id="add-scan-btn">${es ? '✕ Cancel' : '+ Add Scan'}</button>
+      <button class="btn-primary btn-sm" id="add-scan-btn">${showForm ? '✕ Cancel' : '+ Add Scan'}</button>
     </div>
 
-    ${latest && !es ? renderLatestCard(latest, prev) : ''}
-    ${latest && !es ? renderTargetsCard(latest) : ''}
+    ${latest && !showForm ? renderLatestCard(latest, prev) : ''}
+    ${latest && !showForm ? renderTargetsCard(latest) : ''}
 
     <div class="card insights-card" id="insights-card">
       ${insightsHtml}
     </div>
 
-    <div class="card" id="scan-form-card" style="${es ? '' : 'display:none'}">
+    ${showForm ? `<div class="card" id="scan-form-card">
       ${es ? `<div class="editing-banner">✏️ Editing scan from ${formatDate(es.date)} <button id="cancel-scan-edit" class="btn-cancel">Cancel</button></div>` : ''}
       <div class="card-label">${es ? 'Edit Scan' : 'New InBody Scan'}</div>
       ${!es ? `
@@ -315,7 +346,7 @@ export async function renderBodyScan(container) {
       ` : ''}
       ${renderScanForm(es)}
       <button id="save-scan" class="btn-primary" style="margin-top:.5rem">${es ? 'Update Scan' : 'Save Scan'}</button>
-    </div>
+    </div>` : ''}
 
     <div class="card">
       <div class="card-label">All Scans</div>
@@ -328,8 +359,8 @@ export async function renderBodyScan(container) {
   setupBodyScanEvents(container);
   setupInsightsEvents(container, scans, latest, programme);
 
-  if (es) {
-    container.querySelector('#scan-form-card')?.scrollIntoView({ behavior: 'smooth' });
+  if (showForm) {
+    container.querySelector('#scan-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 }
 
@@ -510,16 +541,24 @@ function renderScanHistoryCard(s) {
   `;
 }
 
-function getNum(id) {
-  const v = document.getElementById(id)?.value;
+function getNum(id, ctx) {
+  const v = (ctx || document).querySelector(`#${id}`)?.value;
   return v ? parseFloat(v) : null;
 }
 
 function setupBodyScanEvents(container) {
-  const formEl = container.querySelector('#scan-form-card');
-  const addBtn = container.querySelector('#add-scan-btn');
+  // ── Add / Cancel button ───────────────────────────────────────────────────
+  container.querySelector('#add-scan-btn')?.addEventListener('click', () => {
+    if (editingScan) { editingScan = null; addingNewScan = false; }
+    else              { addingNewScan = !addingNewScan; }
+    renderBodyScan(container);
+  });
 
-  // Upload from file
+  container.querySelector('#cancel-scan-edit')?.addEventListener('click', () => {
+    editingScan = null; addingNewScan = false; renderBodyScan(container);
+  });
+
+  // ── Upload from file ──────────────────────────────────────────────────────
   container.querySelector('#upload-scan-btn')?.addEventListener('click', () => {
     container.querySelector('#scan-file-input')?.click();
   });
@@ -532,6 +571,7 @@ function setupBodyScanEvents(container) {
     const statusEl = container.querySelector('#scan-upload-status');
 
     const setStatus = (type, msg, pct = 0) => {
+      if (!statusEl) return;
       if (type === 'loading') {
         statusEl.innerHTML = `
           <div class="scan-upload-progress">
@@ -552,7 +592,6 @@ function setupBodyScanEvents(container) {
       }
     };
 
-    // Disable upload button while processing
     const uploadBtn = container.querySelector('#upload-scan-btn');
     if (uploadBtn) { uploadBtn.disabled = true; uploadBtn.textContent = '⏳ Reading…'; }
 
@@ -560,27 +599,23 @@ function setupBodyScanEvents(container) {
       const allFields = [...SCAN_FIELDS, ...SEG_FIELDS];
       const name = file.name.toLowerCase();
       const isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
-      const isImage = !isPdf;
 
       let parsed, date;
 
-      if (isImage) {
-        // Try Claude vision first (much more accurate for InBody layouts)
+      if (!isPdf) {
         const apiKey = await getApiKey();
         if (apiKey) {
           const result = await extractWithClaudeVision(file, apiKey, setStatus);
           date   = result.date && result.date !== 'null' ? result.date : null;
           parsed = result;
         } else {
-          // No API key — fall back to Tesseract OCR
-          setStatus('loading', 'No API key set — using OCR (less accurate). Add your Anthropic key in Settings for best results.', 5);
+          setStatus('loading', 'No API key — using OCR (less accurate). Add your key in Settings for best results.', 5);
           await new Promise(r => setTimeout(r, 1800));
           const rawText = await extractScanText(file, setStatus);
           parsed = parseInBodyText(rawText);
           date   = extractDateFromText(rawText);
         }
       } else {
-        // PDF — use pdf.js text extraction
         const rawText = await extractScanText(file, setStatus);
         parsed = parseInBodyText(rawText);
         date   = extractDateFromText(rawText);
@@ -589,14 +624,11 @@ function setupBodyScanEvents(container) {
       const detected = allFields.filter(f => parsed[f.id] != null).length;
 
       if (detected === 0) {
-        setStatus('warn', 'No InBody values detected — make sure the file is a clear InBody printout (PDF or photo).');
+        setStatus('warn', 'No InBody values detected — make sure the file is a clear InBody printout.');
         return;
       }
 
-      // Show and populate the form
-      formEl.style.display = 'block';
-      addBtn.textContent = '✕ Cancel';
-
+      // Populate form fields (already visible since addingNewScan = true)
       if (date) {
         const dateEl = container.querySelector('#scan-date');
         if (dateEl) dateEl.value = date;
@@ -609,7 +641,7 @@ function setupBodyScanEvents(container) {
       });
 
       setStatus('success', `Detected ${detected} of ${allFields.length} fields — review below and tap Save Scan.`);
-      formEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      container.querySelector('#scan-form-card')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     } catch (err) {
       setStatus('error', err.message);
     } finally {
@@ -621,32 +653,12 @@ function setupBodyScanEvents(container) {
     }
   });
 
-  addBtn?.addEventListener('click', () => {
-    if (editingScan) {
-      editingScan = null;
-      renderBodyScan(container);
-      return;
-    }
-    const isShowing = formEl.style.display !== 'none';
-    formEl.style.display = isShowing ? 'none' : 'block';
-    addBtn.textContent = isShowing ? '+ Add Scan' : '✕ Cancel';
-    if (isShowing) {
-      container.querySelectorAll('#scan-form-card input').forEach(el => { el.value = ''; });
-      const statusEl = container.querySelector('#scan-upload-status');
-      if (statusEl) statusEl.innerHTML = '';
-    }
-  });
-
-  container.querySelector('#cancel-scan-edit')?.addEventListener('click', () => {
-    editingScan = null; renderBodyScan(container);
-  });
-
   container.querySelector('#save-scan')?.addEventListener('click', async () => {
     const scan = {
-      date: document.getElementById('scan-date').value,
-      notes: document.getElementById('scan-notes')?.value || '',
+      date: container.querySelector('#scan-date')?.value || todayStr(),
+      notes: container.querySelector('#scan-notes')?.value || '',
     };
-    [...SCAN_FIELDS, ...SEG_FIELDS].forEach(f => { scan[f.id] = getNum(`scan-${f.id}`); });
+    [...SCAN_FIELDS, ...SEG_FIELDS].forEach(f => { scan[f.id] = getNum(`scan-${f.id}`, container); });
 
     if (!scan.weight && !scan.smm) { showToast('Enter at least weight or SMM'); return; }
 
@@ -658,6 +670,7 @@ function setupBodyScanEvents(container) {
       await dbAdd('bodyscans', scan);
       showToast('Scan saved!');
     }
+    addingNewScan = false;
 
     // Refresh page and auto-generate insights if API key is set
     await renderBodyScan(container);
@@ -765,29 +778,43 @@ Respond with ONLY valid JSON (no markdown, no preamble), exactly this structure:
 }
 
 async function callClaude(prompt, apiKey) {
-  const res = await fetch('https://api.anthropic.com/v1/messages', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-api-key': apiKey,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-allow-browser': 'true',
-    },
-    body: JSON.stringify({
-      model: 'claude-haiku-4-5-20251001',
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    }),
-  });
+  let res;
+  try {
+    res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-api-key': apiKey,
+        'anthropic-version': '2023-06-01',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 3000,
+        messages: [{ role: 'user', content: prompt }],
+      }),
+    });
+  } catch (netErr) {
+    throw new Error(`Network error reaching proxy: ${netErr.message}`);
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
+    if (res.status === 401) throw new Error('API key invalid or expired — check your key in Settings.');
     throw new Error(err.error?.message || `API error ${res.status}`);
   }
   const data = await res.json();
   const text = data.content[0]?.text || '';
   const m = text.match(/\{[\s\S]*\}/);
   if (!m) throw new Error('No JSON returned from model');
-  return JSON.parse(m[0]);
+  try {
+    return JSON.parse(m[0]);
+  } catch (parseErr) {
+    // Response was truncated — stop_reason will be 'max_tokens'
+    const stopReason = data.stop_reason || 'unknown';
+    if (stopReason === 'max_tokens') {
+      throw new Error('Response was too long and got cut off. Tap Retry — it should complete on the next attempt.');
+    }
+    throw new Error(`Could not parse insights response (${parseErr.message}). Tap Retry.`);
+  }
 }
 
 async function generateAndStoreInsights(scan, allScans, programme, container) {

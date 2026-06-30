@@ -4,6 +4,7 @@ import { renderWorkout } from './workout.js';
 import { renderRunning } from './running.js';
 import { renderBodyScan } from './bodyscan.js';
 import { renderProgress } from './progress.js';
+import { renderPRBoard } from './prs.js';
 import { renderReminders, scheduleAllReminders } from './reminders.js';
 import { renderSettings } from './settings.js';
 
@@ -13,6 +14,7 @@ const TABS = [
   { id: 'run',      label: '🏃', title: 'Run',      render: renderRunning },
   { id: 'body',     label: '📊', title: 'Body',     render: renderBodyScan },
   { id: 'progress', label: '📈', title: 'Progress', render: renderProgress },
+  { id: 'prs',      label: '🏆', title: 'PRs',      render: renderPRBoard },
   { id: 'reminders',label: '🔔', title: 'Alerts',   render: renderReminders },
   { id: 'settings', label: '⚙️', title: 'Setup',    render: renderSettings },
 ];
@@ -25,6 +27,13 @@ async function init() {
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});
+    // When a new SW takes control (after skipWaiting + clients.claim), reload to
+    // pick up fresh cached assets. Only reload if there was a previous controller
+    // (i.e. this is an update, not a first-time install).
+    const prevController = navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (prevController) window.location.reload();
+    });
   }
 
   const reminders = await dbGetAll('reminders');

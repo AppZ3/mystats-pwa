@@ -1,5 +1,5 @@
 import { SCAN_HISTORY, TARGETS } from './profile.js';
-import { dbGetAll } from './db.js';
+import { dbGetAll, dbGet, dbPut, esc, localDateStr } from './db.js';
 
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -62,8 +62,14 @@ export async function renderProgress(container) {
   const strengthExercises = getStrengthExercises(sortedWorkouts);
   const firstStrEx = strengthExercises[0] || '';
 
+  const checkinHtml = await renderCheckinSection(sortedWorkouts, scans);
+
   container.innerHTML = `
     <div class="section-header"><h2>Progress</h2></div>
+
+    ${renderStreakSection(sortedWorkouts)}
+
+    ${checkinHtml}
 
     ${renderSummaryCards(scans, runs, workouts)}
 
@@ -113,6 +119,10 @@ export async function renderProgress(container) {
     <div class="card">
       <div class="card-label">Segmental Muscle Balance</div>
       <div class="chart-wrap"><canvas id="segment-chart"></canvas></div>
+    </div>
+
+    <div class="card">
+      <div id="journal-section-wrap"></div>
     </div>
   `;
 
@@ -176,6 +186,225 @@ export async function renderProgress(container) {
 
   initVolumeChart(sortedWorkouts, chartDefaults);
   initSegmentChart(scans, chartDefaults);
+
+  // Journal section (dynamic import to avoid circular deps)
+  const { renderJournalSection, setupJournalEvents } = await import('./journal.js');
+  const journalWrap = container.querySelector('#journal-section-wrap');
+  if (journalWrap) await renderJournalSection(journalWrap);
+  setupJournalEvents(container);
+
+  // Check-in event listeners
+  container.querySelector('#gen-checkin-btn')?.addEventListener('click', () => generateCheckin(sortedWorkouts, scans, container));
+  container.querySelector('#regen-checkin-btn')?.addEventListener('click', () => generateCheckin(sortedWorkouts, scans, container));
+}
+
+// ── Streak & Consistency ───────────────────────────────────────────────────
+
+function computeStreak(workouts) {
+  const dates = new Set(workouts.map(w => w.date));
+  const today = localDateStr(new Date());
+
+  let streak = 0;
+  let d = new Date(today + 'T00:00:00');
+  while (true) {
+    const ds = localDateStr(d);
+    if (dates.has(ds)) { streak++; d.setDate(d.getDate() - 1); }
+    else if (ds === today) { d.setDate(d.getDate() - 1); }
+    else break;
+  }
+
+  const startOfWeek = new Date(today + 'T00:00:00');
+  startOfWeek.setDate(startOfWeek.getDate() - ((startOfWeek.getDay() + 6) % 7));
+  let thisWeek = 0;
+  for (let i = 0; i < 7; i++) {
+    const day = new Date(startOfWeek);
+    day.setDate(day.getDate() + i);
+    if (dates.has(localDateStr(day))) thisWeek++;
+  }
+
+  const monthPrefix = today.substring(0, 7);
+  const thisMonth = workouts.filter(w => w.date.startsWith(monthPrefix)).length;
+
+  return { streak, thisWeek, weekTarget: 4, thisMonth };
+}
+
+function renderHeatmap(workouts) {
+  const dates = new Set(workouts.map(w => w.date));
+  const today = localDateStr(new Date());
+  const cells = [];
+  const months = [];
+  let lastMonth = '';
+  for (let i = 69; i >= 0; i--) {
+    const d = new Date(today + 'T00:00:00');
+    d.setDate(d.getDate() - i);
+    const ds = localDateStr(d);
+    const m = d.toLocaleDateString('en-AU', { month: 'short' });
+    if (m !== lastMonth) { months.push({ label: m }); lastMonth = m; }
+    cells.push({ ds, trained: dates.has(ds), today: ds === today });
+  }
+  return `
+    <div class="heatmap-grid">
+      ${cells.map(c => `<div class="heatmap-cell ${c.trained ? 'trained' : ''} ${c.today ? 'today' : ''}" title="${c.ds}"></div>`).join('')}
+    </div>
+    <div class="heatmap-months">
+      ${months.slice(-4).map(m => `<span>${m.label}</span>`).join('')}
+    </div>
+  `;
+}
+
+function renderStreakSection(workouts) {
+  const { streak, thisWeek, weekTarget, thisMonth } = computeStreak(workouts);
+  const weekPct = Math.round((thisWeek / weekTarget) * 100);
+  return `
+    <div class="card">
+      <div class="card-label">Consistency</div>
+      <div class="streak-row">
+        <div class="streak-stat">
+          <div class="s-val">${streak}</div>
+          <div class="s-label">Day Streak 🔥</div>
+        </div>
+        <div class="streak-stat">
+          <div class="s-val">${thisWeek}/${weekTarget}</div>
+          <div class="s-label">This Week</div>
+        </div>
+        <div class="streak-stat">
+          <div class="s-val">${weekPct}%</div>
+          <div class="s-label">Week Target</div>
+        </div>
+        <div class="streak-stat">
+          <div class="s-val">${thisMonth}</div>
+          <div class="s-label">This Month</div>
+        </div>
+      </div>
+      ${renderHeatmap(workouts)}
+    </div>
+  `;
+}
+
+// ── Weekly Check-in ────────────────────────────────────────────────────────
+
+async function renderCheckinSection(workouts, scans) {
+  const stored = await dbGet('settings', 'weekly_checkin');
+  const hasApiKey = !!localStorage.getItem('anthropic_api_key');
+
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const weekStr = oneWeekAgo.toISOString().split('T')[0];
+  const recentWorkouts = workouts.filter(w => w.date >= weekStr);
+
+  const isStale = !stored?.value?.generatedAt || new Date() - new Date(stored.value.generatedAt) > 7 * 86400 * 1000;
+
+  if (!hasApiKey) {
+    return `
+      <div class="card">
+        <div class="card-label">Weekly Check-in</div>
+        <p class="muted" style="font-size:.85rem">Add your Anthropic API key in Settings to get AI weekly summaries.</p>
+      </div>`;
+  }
+
+  const storedData = stored?.value;
+  const storedHtml = storedData ? renderCheckinHtml(storedData) : '';
+
+  return `
+    <div class="card" id="checkin-card">
+      <div class="card-label">Weekly Check-in</div>
+      ${isStale
+        ? `<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem">
+             <span class="muted" style="font-size:.82rem">${recentWorkouts.length} session${recentWorkouts.length !== 1 ? 's' : ''} this week</span>
+             <button class="btn-primary btn-sm" id="gen-checkin-btn">Generate Check-in</button>
+           </div>
+           ${storedHtml ? `<div style="opacity:.6">${storedHtml}</div>` : '<p class="muted" style="font-size:.85rem">Tap to generate your weekly summary.</p>'}`
+        : storedHtml
+      }
+    </div>
+  `;
+}
+
+function renderCheckinHtml(data) {
+  const { summary, wins, focus, goal, generatedAt } = data;
+  const date = new Date(generatedAt).toLocaleDateString('en-AU', { day:'numeric', month:'short' });
+  return `
+    <div class="checkin-meta">Generated ${date}</div>
+    <div class="checkin-summary">${esc(summary)}</div>
+    ${wins?.length ? `
+      <div class="checkin-section">
+        <div class="checkin-section-title">✅ Wins this week</div>
+        <ul class="checkin-items">${wins.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
+      </div>` : ''}
+    ${focus?.length ? `
+      <div class="checkin-section">
+        <div class="checkin-section-title">🎯 Focus next week</div>
+        <ul class="checkin-items">${focus.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
+      </div>` : ''}
+    ${goal ? `<div class="checkin-goal">Next week goal: <strong>${esc(goal)}</strong></div>` : ''}
+    <button class="btn-secondary btn-sm" id="regen-checkin-btn" style="margin-top:.6rem">↺ Regenerate</button>
+  `;
+}
+
+async function generateCheckin(workouts, scans, container) {
+  const apiKey = localStorage.getItem('anthropic_api_key');
+  if (!apiKey) return;
+
+  const card = container?.querySelector('#checkin-card');
+  if (card) {
+    container.querySelector('#gen-checkin-btn')?.remove();
+    const loadEl = document.createElement('div');
+    loadEl.className = 'checkin-loading';
+    loadEl.innerHTML = '<div class="checkin-spinner"></div><span>Analysing your week…</span>';
+    card.appendChild(loadEl);
+  }
+
+  const oneWeekAgo = new Date();
+  oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+  const weekStr = oneWeekAgo.toISOString().split('T')[0];
+  const recentWorkouts = workouts.filter(w => w.date >= weekStr);
+  const latestScan = scans[scans.length - 1];
+
+  const sessionSummary = recentWorkouts.map(w => {
+    const exNames = (w.exercises || []).filter(e => !e.name.startsWith('_')).map(e => e.name).join(', ');
+    return `- ${w.date} (Prog ${w.programme}, ${w.day || ''}): ${exNames || 'mobility/rest'}`;
+  }).join('\n');
+
+  const prompt = `You are a fitness coach reviewing an athlete's week. Based on the data below, give an honest, specific weekly check-in.
+
+SESSIONS THIS WEEK (${recentWorkouts.length} total):
+${sessionSummary || 'No sessions logged this week'}
+
+LATEST BODY SCAN:
+${latestScan ? `Weight: ${latestScan.weight}kg, SMM: ${latestScan.smm}kg, BF: ${latestScan.pbf}%, Score: ${latestScan.inbodyScore}` : 'No scan data'}
+
+Respond with ONLY valid JSON, no markdown, no preamble:
+{"summary":"2-3 honest sentences about the week","wins":["specific win 1","specific win 2"],"focus":["one specific focus for next week","one specific focus for next week"],"goal":"One measurable goal for next week"}`;
+
+  try {
+    const res = await fetch('/api/claude', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01' },
+      body: JSON.stringify({ model: 'claude-haiku-4-5-20251001', max_tokens: 600, messages: [{ role: 'user', content: prompt }] }),
+    });
+    if (!res.ok) throw new Error(`API error ${res.status}`);
+    const data = await res.json();
+    const text = (data.content?.[0]?.text || '').trim();
+    const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/);
+    const jsonStr = fence ? fence[1].trim() : text;
+    const obj = JSON.parse(jsonStr.match(/\{[\s\S]*\}/)[0]);
+    const stored = { ...obj, generatedAt: new Date().toISOString() };
+    await dbPut('settings', { key: 'weekly_checkin', value: stored });
+
+    if (card) {
+      card.querySelector('.checkin-loading')?.remove();
+      const staleDiv = card.querySelector('[style*="opacity"]');
+      if (staleDiv) staleDiv.remove();
+      card.insertAdjacentHTML('beforeend', renderCheckinHtml(stored));
+      card.querySelector('#regen-checkin-btn')?.addEventListener('click', () => generateCheckin(workouts, scans, container));
+    }
+  } catch (err) {
+    if (card) {
+      card.querySelector('.checkin-loading')?.remove();
+      card.insertAdjacentHTML('beforeend', `<p class="muted" style="font-size:.82rem;margin-top:.5rem">Error: ${esc(err.message)} <button class="btn-secondary btn-sm" id="retry-checkin" style="margin-left:.5rem">Retry</button></p>`);
+      card.querySelector('#retry-checkin')?.addEventListener('click', () => generateCheckin(workouts, scans, container));
+    }
+  }
 }
 
 // ── Summary cards ──────────────────────────────────────────────────────────

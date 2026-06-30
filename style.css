@@ -898,7 +898,7 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
   margin-bottom: .75rem; padding: .45rem .6rem;
   background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm);
 }
-.ctrl-group { display: flex; gap: .2rem; }
+.ctrl-group { display: flex; gap: .2rem; flex-wrap: wrap; }
 .ctrl-pill {
   background: var(--bg3); border: 1px solid var(--border); color: var(--muted);
   border-radius: 20px; padding: .18rem .55rem; font-size: .72rem; font-weight: 600;
@@ -1016,3 +1016,28 @@ input:checked + .toggle-slider::before { transform: translateX(16px); }
 .pr-type-tabs { display:flex; gap:.35rem; flex-wrap:wrap; margin-bottom:.6rem; }
 .pr-type-tab { background:var(--bg3); border:1px solid var(--border); border-radius:var(--radius-sm); padding:.3rem .7rem; font-size:.78rem; cursor:pointer; color:var(--muted); }
 .pr-type-tab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+
+/* ── Programme Manager ──────────────────────────────────────────────── */
+.prog-mgr-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .75rem; }
+.prog-mgr-row { display: flex; align-items: center; gap: .5rem; padding: .6rem; background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; }
+.prog-mgr-id { width: 1.8rem; height: 1.8rem; flex: 0 0 auto; border-radius: 50%; background: var(--accent); color: #fff; font-weight: 700; font-size: .85rem; display: flex; align-items: center; justify-content: center; }
+.prog-mgr-info { flex: 1; min-width: 0; }
+.prog-mgr-name { font-weight: 600; font-size: .9rem; }
+.prog-mgr-badge { font-size: .72rem; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.prog-mgr-actions { display: flex; gap: .3rem; flex: 0 0 auto; }
+
+/* ── Block Builder ──────────────────────────────────────────────────── */
+.block-day-tabs { display: flex; flex-wrap: wrap; gap: .3rem; margin: .6rem 0; }
+.block-list { display: flex; flex-direction: column; gap: .5rem; margin-bottom: .6rem; }
+.block-card { background: var(--bg2); border: 1px solid var(--border); border-radius: 8px; padding: .6rem; }
+.block-card-header { display: flex; align-items: center; gap: .4rem; margin-bottom: .4rem; }
+.block-type-badge { font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .03em; color: var(--accent); flex: 0 0 auto; }
+.block-card-actions { margin-left: auto; display: flex; gap: .2rem; }
+.block-card-fields { display: flex; flex-wrap: wrap; gap: .35rem; margin-bottom: .4rem; }
+.block-card-fields .input-field { flex: 1; min-width: 8rem; }
+.blk-ex-row { display: flex; gap: .3rem; align-items: center; margin-bottom: .3rem; }
+.blk-ex-row .input-field { flex: 1; min-width: 0; }
+.blk-ex-num { flex: 0 0 3.5rem !important; }
+.block-add-row { display: flex; gap: .4rem; }
+.block-add-row select { flex: 0 0 auto; width: 9rem; }
+.block-add-row button { flex: 1; }

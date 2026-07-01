@@ -3,6 +3,7 @@ import { dbGet, dbPut, dbGetAll, dbGetByIndex, dbAdd, esc, todayStr } from './db
 import { renderJournalPrompt } from './journal.js';
 import { getChecklistItems, getSupplements } from './config.js';
 import { listProgrammes, getProgrammeSession } from './programmes.js';
+import { scanForPRs, formatPRToast } from './pr-detect.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
 let blockLog = {};       // {exerciseName: {sets:[{weight,reps,note}], hold, level}, _warmup:bool, '_core:...':bool, _run:{...}, '_circuit:N':bool}
@@ -775,6 +776,9 @@ function setupTodayEvents(container) {
       todayWorkoutId = await dbAdd('workouts', workoutData);
       showToast('Session saved!');
     }
+    const newPRs = await scanForPRs(workoutData.exercises, workoutData.date);
+    const prToast = formatPRToast(newPRs);
+    if (prToast) showToast(prToast);
     await loadTodayLog();
     const btn = container.querySelector('#save-today-log');
     if (btn) btn.textContent = '✓ Update Session';

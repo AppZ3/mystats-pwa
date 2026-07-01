@@ -1,4 +1,6 @@
-import { dbGet, dbPut, dbGetAll, dbAdd } from './db.js';
+import { dbGet, dbPut, dbGetAll, dbAdd, dbDelete } from './db.js';
+
+const TYPE_PRIORITY = { weight: 0, hold: 1, reps: 2 }; // lower number wins when a name's PRs conflict in type
 
 // Turns one saved exercise record into a single rankable candidate, or null if
 // nothing in it can be ranked (pseudo-exercises, or a block with no logged data).
@@ -36,10 +38,15 @@ function detectCandidate(ex) {
 export async function scanForPRs(exercises, date) {
   const allPRs = await dbGetAll('prs');
   const bestFor = new Map(); // `${exercise}|${type}` -> current best value
+  const canonicalType = new Map(); // exercise -> highest-priority type seen across all existing PRs for that name
   for (const pr of allPRs) {
     const key = `${pr.exercise}|${pr.type}`;
     const cur = bestFor.get(key);
     if (cur === undefined || pr.value > cur) bestFor.set(key, pr.value);
+    const existingType = canonicalType.get(pr.exercise);
+    if (existingType === undefined || TYPE_PRIORITY[pr.type] < TYPE_PRIORITY[existingType]) {
+      canonicalType.set(pr.exercise, pr.type);
+    }
   }
 
   const newPRs = [];
@@ -47,6 +54,24 @@ export async function scanForPRs(exercises, date) {
     if (!ex.name || ex.name.startsWith('_')) continue;
     const candidate = detectCandidate(ex);
     if (!candidate) continue;
+
+    const existingType = canonicalType.get(ex.name);
+    if (existingType !== undefined && existingType !== candidate.type) {
+      if (TYPE_PRIORITY[candidate.type] < TYPE_PRIORITY[existingType]) {
+        // Candidate outranks the name's current type (e.g. a weight record now exists
+        // for a name that previously only had bodyweight-reps records) — the candidate
+        // becomes the new canonical type; remove the now-superseded AUTO-LOGGED records
+        // (never touch manual ones) so the board doesn't mix units under one name.
+        const superseded = allPRs.filter(pr => pr.exercise === ex.name && pr.type === existingType && pr.notes === 'Auto-logged');
+        for (const old of superseded) await dbDelete('prs', old.id);
+        canonicalType.set(ex.name, candidate.type);
+      } else {
+        // The name's existing type outranks this candidate (e.g. a weight record already
+        // exists, candidate is bodyweight-reps) — skip entirely rather than create a
+        // second, incomparable-unit record under the same name.
+        continue;
+      }
+    }
 
     const key = `${ex.name}|${candidate.type}`;
     const best = bestFor.get(key);

@@ -733,8 +733,15 @@ export async function importBackup(file) {
   for (const c of (data.checklists || [])) await dbPut('checklist', c);
 
   // A freshly-imported backup should always get a fresh PR backfill scan against
-  // its own workout history — clear the one-time guard so the next backfill call
-  // (whether via a reload here, or an explicit call from onboarding.js) actually runs.
+  // its own workout history. Clear any AUTO-LOGGED PRs from this device's previous
+  // dataset first (manual entries are kept) so the re-derive isn't polluted by stale
+  // records unrelated to what's being imported, then clear the one-time guard so the
+  // next backfill call (whether via a reload here, or an explicit call from
+  // onboarding.js) actually runs against a clean slate.
+  const existingPRs = await dbGetAll('prs');
+  for (const pr of existingPRs.filter(p => p.notes === 'Auto-logged')) {
+    await dbDelete('prs', pr.id);
+  }
   await dbDelete('settings', 'pr_backfill_done');
 }
 

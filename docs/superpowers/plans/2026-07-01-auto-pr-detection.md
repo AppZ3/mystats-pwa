@@ -610,11 +610,187 @@ git commit -m "fix: stop pre-filling Today's reps input with the prescribed defa
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Re-run the local full-flow smoke-test, focused on the fix**
+- [x] **Step 1: Re-run the local full-flow smoke-test, focused on the fix** *(completed — PASS, see amendment below; Steps 2-4 deferred)*
 
-With a local server running:
-1. Repeat Task 7's Step 1 walkthrough (backfill from seeded/imported history, live PR detection on Today + Train, silence on non-PR saves, first-ever-record detection, manual Add-PR untouched, idempotent reload, Task 6's import-flag-clear fix) to confirm nothing regressed from Task 8's change.
-2. Specifically re-confirm Task 8's fix: a Today-tab session save with only ONE exercise touched produces exactly one new PR (for the touched exercise), not one per exercise in the block.
+**Amendment:** Step 1 ran and passed. Steps 2-4 (deploy/spot-check/push) were deferred, same as before, pending a final whole-branch review. That review surfaced two more real, Important (non-Critical) findings, addressed in the new Task 10 below — deploy/push now happens in the renumbered Task 11.
+
+---
+
+## Task 10: Fix — cross-session PR-type mixing, and stale auto-PRs surviving a backup re-import
+
+**Files:**
+- Modify: `js/pr-detect.js`
+- Modify: `js/settings.js`
+
+**Why this task exists:** the final whole-branch review found two integration-scale gaps that only show up looking at the whole history/import flow together, neither caught by the single-session smoke tests in Tasks 3/4/6/7/9:
+
+1. **Cross-session type mixing.** `scanForPRs`'s `detectCandidate` picks one type per *call* (weight > bodyweight-reps > hold/rep-derived), but nothing stops the *same exercise name* from accumulating a `weight` record in one session and a `reps` record in a different session (e.g. a pull-up variant logged bodyweight one week, weighted the next). `js/prs.js`'s `byExercise` grouping (unmodified, out of scope) sorts all records for a name together and compares raw `value`s regardless of `type` — exactly the incomparable-units-under-one-card problem the original design's "one exercise name maps to exactly one PR type at a time" constraint was meant to prevent, but the implementation only enforced it per-record, not per-name-over-time.
+2. **Stale auto-PRs surviving a Settings re-import.** The backup export format never includes the `prs` store (confirmed: it's absent from `js/settings.js`'s export object and from the `autoStores` restore list). Task 6 made `importBackup()` clear the backfill flag so the freshly-imported `workouts` get rescanned — but any *already-existing* auto-logged PRs on that device (from data unrelated to the freshly-imported backup) are never cleared, so they linger, can suppress a genuinely higher value from the imported history (the strictly-greater check sees the stale record as the "best"), and can end up mixed with derived-from-import data that has nothing to do with them.
+
+**Scoping decision, explicit:** both fixes only ever touch/delete PR records with `notes === 'Auto-logged'`. Manually-added PRs (via the existing "+ Add PR" form) are never deleted or modified by either fix — if a manual entry happens to conflict in type with an auto-detected one for the same name, it's left alone (matches the plan's original non-goal that the manual flow stays untouched); a name could still theoretically show a mixed-type card in that specific case, but that requires the *user* to have manually created the conflict, not the automatic detection logic.
+
+- [ ] **Step 1: Enforce one PR type per exercise name in `scanForPRs`**
+
+In `js/pr-detect.js`, add a priority-order constant and rework `scanForPRs` to track and reconcile each exercise's canonical type:
+
+```js
+const TYPE_PRIORITY = { weight: 0, hold: 1, reps: 2 }; // lower number wins when a name's PRs conflict in type
+```
+
+Find:
+```js
+export async function scanForPRs(exercises, date) {
+  const allPRs = await dbGetAll('prs');
+  const bestFor = new Map(); // `${exercise}|${type}` -> current best value
+  for (const pr of allPRs) {
+    const key = `${pr.exercise}|${pr.type}`;
+    const cur = bestFor.get(key);
+    if (cur === undefined || pr.value > cur) bestFor.set(key, pr.value);
+  }
+
+  const newPRs = [];
+  for (const ex of exercises) {
+    if (!ex.name || ex.name.startsWith('_')) continue;
+    const candidate = detectCandidate(ex);
+    if (!candidate) continue;
+
+    const key = `${ex.name}|${candidate.type}`;
+    const best = bestFor.get(key);
+    if (best === undefined || candidate.value > best) {
+      const record = {
+        exercise: ex.name,
+        type: candidate.type,
+        value: candidate.value,
+        unit: candidate.unit,
+        date,
+        notes: 'Auto-logged',
+      };
+      await dbAdd('prs', record);
+      newPRs.push(record);
+      bestFor.set(key, candidate.value); // guards against the same exercise name appearing twice in one save
+    }
+  }
+  return newPRs;
+}
+```
+Replace with:
+```js
+export async function scanForPRs(exercises, date) {
+  const allPRs = await dbGetAll('prs');
+  const bestFor = new Map(); // `${exercise}|${type}` -> current best value
+  const canonicalType = new Map(); // exercise -> highest-priority type seen across all existing PRs for that name
+  for (const pr of allPRs) {
+    const key = `${pr.exercise}|${pr.type}`;
+    const cur = bestFor.get(key);
+    if (cur === undefined || pr.value > cur) bestFor.set(key, pr.value);
+    const existingType = canonicalType.get(pr.exercise);
+    if (existingType === undefined || TYPE_PRIORITY[pr.type] < TYPE_PRIORITY[existingType]) {
+      canonicalType.set(pr.exercise, pr.type);
+    }
+  }
+
+  const newPRs = [];
+  for (const ex of exercises) {
+    if (!ex.name || ex.name.startsWith('_')) continue;
+    const candidate = detectCandidate(ex);
+    if (!candidate) continue;
+
+    const existingType = canonicalType.get(ex.name);
+    if (existingType !== undefined && existingType !== candidate.type) {
+      if (TYPE_PRIORITY[candidate.type] < TYPE_PRIORITY[existingType]) {
+        // Candidate outranks the name's current type (e.g. a weight record now exists
+        // for a name that previously only had bodyweight-reps records) — the candidate
+        // becomes the new canonical type; remove the now-superseded AUTO-LOGGED records
+        // (never touch manual ones) so the board doesn't mix units under one name.
+        const superseded = allPRs.filter(pr => pr.exercise === ex.name && pr.type === existingType && pr.notes === 'Auto-logged');
+        for (const old of superseded) await dbDelete('prs', old.id);
+        canonicalType.set(ex.name, candidate.type);
+      } else {
+        // The name's existing type outranks this candidate (e.g. a weight record already
+        // exists, candidate is bodyweight-reps) — skip entirely rather than create a
+        // second, incomparable-unit record under the same name.
+        continue;
+      }
+    }
+
+    const key = `${ex.name}|${candidate.type}`;
+    const best = bestFor.get(key);
+    if (best === undefined || candidate.value > best) {
+      const record = {
+        exercise: ex.name,
+        type: candidate.type,
+        value: candidate.value,
+        unit: candidate.unit,
+        date,
+        notes: 'Auto-logged',
+      };
+      await dbAdd('prs', record);
+      newPRs.push(record);
+      bestFor.set(key, candidate.value); // guards against the same exercise name appearing twice in one save
+    }
+  }
+  return newPRs;
+}
+```
+Also update the import line at the top of the file to include `dbDelete`:
+```js
+import { dbGet, dbPut, dbGetAll, dbAdd, dbDelete } from './db.js';
+```
+
+- [ ] **Step 2: Clear auto-logged PRs before the backfill flag clears, in `importBackup`**
+
+In `js/settings.js`, find the `importBackup` function's tail (the `dbDelete('settings', 'pr_backfill_done');` line added by Task 6):
+```js
+  // A freshly-imported backup should always get a fresh PR backfill scan against
+  // its own workout history — clear the one-time guard so the next backfill call
+  // (whether via a reload here, or an explicit call from onboarding.js) actually runs.
+  await dbDelete('settings', 'pr_backfill_done');
+```
+Replace with:
+```js
+  // A freshly-imported backup should always get a fresh PR backfill scan against
+  // its own workout history. Clear any AUTO-LOGGED PRs from this device's previous
+  // dataset first (manual entries are kept) so the re-derive isn't polluted by stale
+  // records unrelated to what's being imported, then clear the one-time guard so the
+  // next backfill call (whether via a reload here, or an explicit call from
+  // onboarding.js) actually runs against a clean slate.
+  const existingPRs = await dbGetAll('prs');
+  for (const pr of existingPRs.filter(p => p.notes === 'Auto-logged')) {
+    await dbDelete('prs', pr.id);
+  }
+  await dbDelete('settings', 'pr_backfill_done');
+```
+(`dbGetAll` and `dbDelete` are already imported at the top of `js/settings.js` — no import changes needed here.)
+
+- [ ] **Step 3: Syntax-check**
+
+Run: `node --input-type=module < js/pr-detect.js` and `node --input-type=module < js/settings.js`
+Expected: only `ERR_MODULE_NOT_FOUND`, no `SyntaxError`.
+
+- [ ] **Step 4: Manual verification**
+
+Using browser tools against a local server (remember: always `db.close()` on any raw `indexedDB.open()` connection you create, never `indexedDB.deleteDatabase()` for cleanup):
+
+**Type-mixing scenario:** seed a `workouts` record with `{name: 'Pistol Squat', sets: [{reps: '10'}]}` (no weight) on an early date, reload/rescan or log it live — confirm a `reps` PR is created. Then log the SAME exercise name with a weight (e.g. `{name: 'Pistol Squat', sets: [{weight: 20, reps: '5'}]}`) in a later session — confirm this creates a NEW `weight` PR for "Pistol Squat" AND the old auto-logged `reps` PR for that same name is gone (check the PRs tab / `prs` store directly) — only one card for "Pistol Squat" should exist, now weight-based. Then log a lower-priority `reps`-only set for the same name again — confirm NO new PR record is created (since a `weight` record already outranks it).
+
+**Re-import scenario:** with some auto-logged PRs already present on the device, export data, then re-import that same file (or seed a couple of `workouts` first if you want to see a genuine before/after) — confirm auto-logged PRs get cleared and cleanly re-derived after the reload, with no stale entries from before the import lingering alongside the freshly re-scanned ones. Confirm a manually-added PR (via "+ Add PR") survives the import untouched.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add js/pr-detect.js js/settings.js
+git commit -m "fix: one PR type per exercise name (weight supersedes), clear auto-PRs on backup re-import"
+```
+
+---
+
+## Task 11: Final re-verify and deploy
+
+**Files:** none (verification only)
+
+- [ ] **Step 1: One more local full-flow smoke-test**
+
+Repeat the Task 9 walkthrough once more (backfill, live detection on Today + Train, silence on non-PR saves, first-ever-record detection, manual Add-PR untouched, idempotent reload, Task 6's + Task 10's import fixes, Task 8's reps-default fix) to confirm nothing regressed from Task 10's change, alongside Task 10's own two new scenarios above.
 
 - [ ] **Step 2: Deploy**
 

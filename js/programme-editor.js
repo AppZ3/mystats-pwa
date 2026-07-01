@@ -427,7 +427,15 @@ async function importJsonProgramme(file, progId) {
     const dayNum = PROG_DAY_MAP[dayName.toLowerCase()];
     if (dayNum === undefined) throw new Error(`Unknown day "${dayName}" — use Monday, Tuesday, etc.`);
     if (Array.isArray(dayData.blocks)) {
-      sessions[dayNum] = { label: dayData.label || '', focus: dayData.focus || '', blocks: dayData.blocks };
+      const validTypes = new Set(BLOCK_TYPES.map(t => t.type));
+      const blocks = dayData.blocks
+        .filter(b => b && validTypes.has(b.type))
+        .map(b => {
+          if (b.type === 'warmup' || b.type === 'core') return { ...b, items: Array.isArray(b.items) ? b.items : [] };
+          if (b.type === 'skill' || b.type === 'strength' || b.type === 'circuit') return { ...b, exercises: Array.isArray(b.exercises) ? b.exercises : [] };
+          return b; // cardio/mobility have no array field to coerce
+        });
+      sessions[dayNum] = { label: dayData.label || '', focus: dayData.focus || '', blocks };
     } else {
       const exercises = (dayData.exercises || []).map(ex =>
         typeof ex === 'string' ? { name: ex } : { name: ex.name, sets: ex.sets, reps: ex.reps ? String(ex.reps) : undefined }
@@ -597,14 +605,14 @@ function setupUploadEvents(container, progId, onDone) {
         await saveSessions(progId, sessions);
         status.textContent = `✓ Parsed ${totalEx} exercises into Strength blocks — refine with the block builder above.`;
         status.style.color = 'var(--success)';
-        onDone();
+        setTimeout(onDone, 1000);
       } else {
         status.textContent = 'Reading…';
         status.style.color = 'var(--muted)';
         await importJsonProgramme(file, progId);
         status.textContent = '✓ Programme loaded';
         status.style.color = 'var(--success)';
-        onDone();
+        setTimeout(onDone, 1000);
       }
     } catch (err) {
       status.textContent = '✕ ' + err.message;

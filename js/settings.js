@@ -1,5 +1,5 @@
 import { dbGet, dbPut, dbAdd, dbGetAll, dbDelete, dbClear, esc } from './db.js';
-import { MORNING_ROUTINE, SUPPLEMENTS, TARGETS, DEFAULT_CHECKLIST_ITEMS, ALL_EXERCISES, SCAN_HISTORY } from './profile.js';
+import { MORNING_ROUTINE, SUPPLEMENTS, TARGETS, DEFAULT_CHECKLIST_ITEMS, SCAN_HISTORY } from './profile.js';
 import { getChecklistItems, getMorningRoutine, getSupplements, getTargets, getUserProfile } from './config.js';
 import { renderProgrammeManager } from './programme-editor.js';
 

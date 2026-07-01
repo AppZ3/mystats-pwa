@@ -1,4 +1,4 @@
-import { PROGRAMME_A, PROGRAMME_B, PRE_TRAINING, MOBILITY_SESSIONS } from './profile.js';
+import { PRE_TRAINING, MOBILITY_SESSIONS } from './profile.js';
 import { dbGet, dbPut, dbGetAll, dbGetByIndex, dbAdd, esc, todayStr } from './db.js';
 import { renderJournalPrompt } from './journal.js';
 import { getChecklistItems, getSupplements } from './config.js';
@@ -388,13 +388,13 @@ function sessionProgress() {
   let total = 0, done = 0;
   currentBlocks.forEach(block => {
     if (block.type === 'warmup')  { total++; if (blockLog._warmup) done++; }
-    if (block.type === 'core')    { block.items.forEach(item => { total++; if (blockLog[`_core:${item}`]) done++; }); }
+    if (block.type === 'core')    { (block.items || []).forEach(item => { total++; if (blockLog[`_core:${item}`]) done++; }); }
     if (block.type === 'circuit') {
       const rounds = parseInt((block.label || '').match(/\d+/)?.[0]) || 3;
       Array.from({length: rounds}, (_, i) => { total++; if (blockLog[`_circuit:${i + 1}`]) done++; });
     }
-    if (block.type === 'strength') { block.exercises.forEach(ex => { total++; if ((blockLog[ex.name]?.sets || []).some(s => s.reps || s.weight)) done++; }); }
-    if (block.type === 'skill')    { block.exercises.forEach(ex => { total++; if ((blockLog[ex.name]?.sets?.length || 0) > 0 || blockLog[ex.name]?.hold) done++; }); }
+    if (block.type === 'strength') { (block.exercises || []).forEach(ex => { total++; if ((blockLog[ex.name]?.sets || []).some(s => s.reps || s.weight)) done++; }); }
+    if (block.type === 'skill')    { (block.exercises || []).forEach(ex => { total++; if ((blockLog[ex.name]?.sets?.length || 0) > 0 || blockLog[ex.name]?.hold) done++; }); }
     if (block.type === 'cardio')   { total++; if (blockLog._run?.distance || blockLog._run?.duration) done++; }
   });
   return { total, done, pct: total ? Math.round((done / total) * 100) : 0 };

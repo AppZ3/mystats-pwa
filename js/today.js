@@ -1,7 +1,8 @@
 import { PROGRAMME_A, PROGRAMME_B, PRE_TRAINING, MOBILITY_SESSIONS } from './profile.js';
 import { dbGet, dbPut, dbGetAll, dbGetByIndex, dbAdd, esc, todayStr } from './db.js';
 import { renderJournalPrompt } from './journal.js';
-import { getChecklistItems, getSupplements, getProgrammeSchedule, getProgrammeTargets, getProgrammeSession } from './config.js';
+import { getChecklistItems, getSupplements } from './config.js';
+import { listProgrammes, getProgrammeSession } from './programmes.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
 let blockLog = {};       // {exerciseName: {sets:[{weight,reps,note}], hold, level}, _warmup:bool, '_core:...':bool, _run:{...}, '_circuit:N':bool}
@@ -494,17 +495,18 @@ function renderSuppsPanel(allSupplements) {
 export async function renderToday(container) {
   if (Object.keys(blockLog).length === 0) await loadTodayLog();
 
-  const [savedProg, savedWeek, checklistItems, allSupplements, allWorkouts] = await Promise.all([
-    getCurrentProgramme(), getCurrentWeek(), getChecklistItems(), getSupplements(), dbGetAll('workouts'),
+  const [savedProg, savedWeek, checklistItems, allSupplements, allWorkouts, programmes] = await Promise.all([
+    getCurrentProgramme(), getCurrentWeek(), getChecklistItems(), getSupplements(), dbGetAll('workouts'), listProgrammes(),
   ]);
   cachedAllWorkouts = allWorkouts;
-  const prog = pendingProg ?? savedProg;
+  const validIds = new Set(programmes.map(p => p.id));
+  const prog = validIds.has(pendingProg) ? pendingProg : (validIds.has(savedProg) ? savedProg : programmes[0].id);
   const week = pendingWeek ?? savedWeek;
   activeProg = prog;
   activeWeek = week;
   if (pendingDay !== null) selectedDay = pendingDay;
 
-  const session  = getProgrammeSession(prog, selectedDay);
+  const session  = await getProgrammeSession(prog, selectedDay);
   currentBlocks  = session.blocks || [];
   const checklist = await getTodayChecklist();
   const mobility  = getMobilityForDay(selectedDay);
@@ -520,8 +522,9 @@ export async function renderToday(container) {
 
     <div class="session-ctrl-bar">
       <div class="ctrl-group">
-        <button class="ctrl-pill prog-pill ${prog === 'A' ? 'active' : ''}" data-prog="A">A</button>
-        <button class="ctrl-pill prog-pill ${prog === 'B' ? 'active' : ''}" data-prog="B">B</button>
+        ${programmes.map(p => `
+          <button class="ctrl-pill prog-pill ${prog === p.id ? 'active' : ''}" data-prog="${p.id}" title="${esc(p.name)}">${esc(p.id)}</button>
+        `).join('')}
       </div>
       <div class="ctrl-group">
         ${[1,2,3,4].map(w => `

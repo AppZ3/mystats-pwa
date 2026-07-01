@@ -1,4 +1,5 @@
 import { initDB, dbGetAll, dbGet, dbPut } from './db.js';
+import { ensureSeeded } from './programmes.js';
 import { renderToday } from './today.js';
 import { renderWorkout } from './workout.js';
 import { renderRunning } from './running.js';
@@ -24,6 +25,7 @@ let activeTab = 'today';
 async function init() {
   try {
   await initDB();
+  await ensureSeeded();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});

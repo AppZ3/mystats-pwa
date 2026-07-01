@@ -1,6 +1,6 @@
 // Shared helpers: load user settings with profile.js defaults as fallback
 import { dbGet } from './db.js';
-import { MORNING_ROUTINE, SUPPLEMENTS, PROGRAMME_A, PROGRAMME_B, PROG_A_SESSIONS, PROG_B_SESSIONS, TARGETS, PROFILE, DEFAULT_CHECKLIST_ITEMS } from './profile.js';
+import { MORNING_ROUTINE, SUPPLEMENTS, TARGETS, PROFILE, DEFAULT_CHECKLIST_ITEMS } from './profile.js';
 
 export async function getChecklistItems() {
   const s = await dbGet('settings', 'checklist_items');
@@ -17,11 +17,6 @@ export async function getSupplements() {
   return s?.value ?? SUPPLEMENTS;
 }
 
-export async function getProgrammeSchedule(prog) {
-  const s = await dbGet('settings', `programme_${prog.toLowerCase()}_schedule`);
-  return s?.value ?? (prog === 'A' ? PROGRAMME_A.schedule : PROGRAMME_B.schedule);
-}
-
 export async function getTargets() {
   const s = await dbGet('settings', 'targets');
   return s?.value ?? TARGETS;
@@ -30,19 +25,4 @@ export async function getTargets() {
 export async function getUserProfile() {
   const s = await dbGet('settings', 'user_profile');
   return s?.value ?? PROFILE;
-}
-
-export async function getProgrammeTargets(prog) {
-  const s = await dbGet('settings', `programme_${prog.toLowerCase()}_targets`);
-  return s?.value ?? {};
-}
-
-export async function getProgrammeMeta(prog) {
-  const s = await dbGet('settings', `programme_${prog.toLowerCase()}_meta`);
-  return s?.value ?? null;
-}
-
-export function getProgrammeSession(prog, day) {
-  const sessions = prog === 'A' ? PROG_A_SESSIONS : PROG_B_SESSIONS;
-  return sessions[day] ?? { label: 'Rest', focus: 'Recovery', blocks: [] };
 }

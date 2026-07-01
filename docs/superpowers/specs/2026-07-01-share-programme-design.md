@@ -17,30 +17,35 @@ You want to hand a programme you've built (or uploaded) to a friend, so they can
 - No account system, no server-side storage or sharing link, no relay of any kind. Sharing means "here's a file" — how it physically reaches the friend (email, messaging app, cloud drive) is entirely outside the app's concern.
 - No per-recipient scaling of any value (reps, sets, hold times, cardio BPM zones, anything). The user explicitly confirmed they just want the friend to set up their own profile normally and have the shared programme available to train from — not a personalized/rescaled copy.
 - No changes to the upload/import code path at all. `js/programme-editor.js`'s `importJsonProgramme` (built in the concurrent multi-programme-support work) already accepts a full `{name, description, days: {DayName: {label, focus, blocks}}}` shape and uses a day's `blocks` array verbatim when present — this is exactly the shape a shared-programme export needs to produce. No new parsing logic.
+- No bulk/multi-programme export. One "Share" action exports exactly one programme; sharing several means running it multiple times. Not requested, and the per-programme scope matches how everything else in the manager already works (one row, one set of actions).
 
 ## Design
 
-**New button, one per programme row**, in `js/programme-editor.js`'s `progMgrRow(p)` (alongside the existing Rename/Edit/Delete buttons): `⬇ Share`.
+**New button, one per programme row**, in `js/programme-editor.js`'s `progMgrRow(p)`. The row already holds three actions (`Rename` and `Edit`/`Close` as text buttons, `✕` delete as an icon-only `.btn-icon`) — on a phone-width PWA, a fourth full-text button risks wrapping awkwardly. Match the delete button's icon-only convention instead: `<button class="btn-icon share-prog-btn" data-id="${p.id}" aria-label="Share ${esc(p.name)}">⬇</button>`, placed before the delete button (export is non-destructive and more commonly used than delete, so it reads left of it).
 
 **Export logic** (new function, e.g. `exportProgramme(id)` in `js/programme-editor.js`):
 1. Read the programme's meta (`name`) via `getProgrammeMeta(id)` and its sessions via `getSessions(id)` (both already exported by `js/programmes.js`).
 2. Convert the sessions object (keyed `0`-`6`, Sunday-Saturday, per `js/programmes.js`) into the upload format's day-name keys (`Sunday`-`Saturday`) — the inverse of `PROG_DAY_MAP` already defined in `js/programme-editor.js` for the import side; a small reverse-lookup table, not new logic.
 3. Build `{ name: meta.name, description: meta.description || '', days: { <DayName>: { label, focus, blocks } for each day } }`.
-4. Serialize with `JSON.stringify(..., null, 2)`, trigger a download named after the programme (slugified name, e.g. `mystats-programme-deload-week.json`) — same `Blob`/`URL.createObjectURL`/`a.click()` pattern already used by the existing "⬇ Template" download button.
+4. Serialize with `JSON.stringify(..., null, 2)`, trigger a download named after the programme — filename derived as `mystats-programme-${slug}.json` where `slug` is the programme name lowercased, non-alphanumeric runs collapsed to a single hyphen, and leading/trailing hyphens trimmed: `name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')`. Same slugify *approach* as the checklist-key generator in `js/settings.js`'s `setupChecklistEvents` (`label.toLowerCase().replace(/[^a-z0-9]+/g,'_').replace(/^_|_$/g,'')`), but hyphens instead of underscores — matching this codebase's existing kebab-case download filenames (`mystats-programme-template.json`, `mystats-${date}.json`) rather than the underscore convention used for JS object keys elsewhere. Same `Blob`/`URL.createObjectURL`/`a.click()` pattern already used by the existing "⬇ Template" download button.
 
 **No changes needed on the import side.** A friend receiving this file uses the programme manager's existing "📋 Upload Programme" button (built in the concurrent work) exactly as it stands today — the file's shape is already what `importJsonProgramme`'s advanced (`blocks`-array) branch expects.
+
+**Privacy boundary, explicit:** the export contains *only* that one programme's structure — its name, description, and the seven days' blocks (exercise names, sets/reps/hold-time/cardio targets). It never touches and never includes the owner's profile, workout history, journal entries, PRs, body scans, or any other settings key. Worth stating plainly since it's the reason this feature needs no consent/redaction step — there's nothing personal in the file to begin with.
 
 ## Data flow
 
 ```
-Programme owner (Settings → Programmes → row → ⬇ Share)
+Programme owner (Settings → Programmes → row's ⬇ icon)
   → getProgrammeMeta(id) + getSessions(id)
   → day-number → day-name conversion
   → JSON file download
 
                      (file transferred by any means outside the app)
 
-Friend, own device (Settings → Programmes → + Add Programme → Upload Programme)
+Friend, own device (Settings → Programmes → + Add Programme
+  — auto-opens that new programme's block editor, per the existing
+  post-create behaviour — → 📋 Upload Programme within it)
   → existing importJsonProgramme(file, newProgId)
   → Array.isArray(dayData.blocks) branch used verbatim
   → friend's own programme, full fidelity, their own profile untouched
@@ -51,6 +56,7 @@ Friend, own device (Settings → Programmes → + Add Programme → Upload Progr
 - **Rest days** (empty `blocks: []`): serialize and re-import cleanly — the existing upload code already handles an empty/absent `exercises`/`blocks` array as a Rest day with no special-casing needed.
 - **Programme name collisions** on the friend's side: not a concern — `createProgramme`/the upload flow already assigns a fresh, independent id (lowest free letter) on their device; names don't need to be unique across two separate app instances.
 - **Re-sharing an already-imported programme**: works the same way — export doesn't care whether the programme was originally built-in, hand-built, or itself imported.
+- **Uploading into an already-populated programme slot** (not a fresh empty one): existing `importJsonProgramme` behavior applies unchanged — since this export always includes all 7 days, every day in the target slot gets overwritten day-for-day; nothing from the old content survives. Not a new risk this feature introduces, just worth knowing since a friend could technically upload a shared file over an existing programme instead of a fresh "+ Add Programme" one.
 
 ## Testing approach
 

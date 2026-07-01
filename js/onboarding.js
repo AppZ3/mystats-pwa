@@ -1,5 +1,6 @@
 import { dbPut } from './db.js';
 import { importBackup } from './settings.js';
+import { ensurePRBackfill } from './pr-detect.js';
 
 const GOALS = [
   { id: 'muscle',      label: '💪 Build Muscle' },
@@ -110,6 +111,7 @@ export async function showOnboarding(onComplete) {
     status.style.color = 'var(--muted)';
     try {
       await importBackup(file);
+      await ensurePRBackfill(); // flag was just cleared by importBackup — this actually scans now
       status.textContent = '✓ Done! Loading your data…';
       status.style.color = 'var(--success)';
       setTimeout(() => { overlay.remove(); onComplete(); }, 1000);

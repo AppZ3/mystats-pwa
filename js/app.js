@@ -1,5 +1,6 @@
 import { initDB, dbGetAll, dbGet, dbPut } from './db.js';
 import { ensureSeeded } from './programmes.js';
+import { ensurePRBackfill } from './pr-detect.js';
 import { renderToday } from './today.js';
 import { renderWorkout } from './workout.js';
 import { renderRunning } from './running.js';
@@ -26,6 +27,7 @@ async function init() {
   try {
   await initDB();
   await ensureSeeded();
+  await ensurePRBackfill();
 
   if ('serviceWorker' in navigator) {
     navigator.serviceWorker.register('/sw.js').catch(() => {});

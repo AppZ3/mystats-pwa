@@ -3,6 +3,7 @@ import { dbGet, dbPut, dbGetAll, dbGetByIndex, dbAdd, esc, todayStr } from './db
 import { renderJournalPrompt } from './journal.js';
 import { getChecklistItems, getSupplements } from './config.js';
 import { listProgrammes, getProgrammeSession } from './programmes.js';
+import { scanForPRs, formatPRToast } from './pr-detect.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
 let blockLog = {};       // {exerciseName: {sets:[{weight,reps,note}], hold, level}, _warmup:bool, '_core:...':bool, _run:{...}, '_circuit:N':bool}
@@ -255,7 +256,7 @@ function renderStrengthBlock(block) {
         const rows      = [];
         for (let i = 0; i < Math.max(targetN, existing.length); i++) {
           const s = existing[i] || {};
-          rows.push({ weight: s.weight ?? '', reps: s.reps ?? ex.reps ?? '', done: !!(s.weight || s.reps) });
+          rows.push({ weight: s.weight ?? '', reps: s.reps ?? '', done: !!(s.weight || s.reps) });
         }
         const prev = getPrevExercise(ex.name);
         return `
@@ -775,6 +776,9 @@ function setupTodayEvents(container) {
       todayWorkoutId = await dbAdd('workouts', workoutData);
       showToast('Session saved!');
     }
+    const newPRs = await scanForPRs(workoutData.exercises, workoutData.date);
+    const prToast = formatPRToast(newPRs);
+    if (prToast) showToast(prToast);
     await loadTodayLog();
     const btn = container.querySelector('#save-today-log');
     if (btn) btn.textContent = '✓ Update Session';

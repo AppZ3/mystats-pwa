@@ -1,5 +1,6 @@
 import { ALL_EXERCISES, SKILL_PROGRESSIONS } from './profile.js';
 import { dbAdd, dbPut, dbGetAll, dbDelete, esc, todayStr } from './db.js';
+import { scanForPRs, formatPRToast } from './pr-detect.js';
 
 let currentSession = { date: '', exercises: [] };
 let editingWorkoutId = null;
@@ -234,6 +235,8 @@ function setupWorkoutEvents(container, allWorkouts) {
 
   container.querySelector('#save-workout')?.addEventListener('click', async () => {
     if (currentSession.exercises.length === 0) { showToast('Add at least one exercise'); return; }
+    const savedExercises = currentSession.exercises;
+    const savedDate = currentSession.date;
     if (editingWorkoutId) {
       await dbPut('workouts', { id: editingWorkoutId, ...currentSession });
       editingWorkoutId = null;
@@ -242,6 +245,9 @@ function setupWorkoutEvents(container, allWorkouts) {
       await dbAdd('workouts', { ...currentSession });
       showToast('Session saved!');
     }
+    const newPRs = await scanForPRs(savedExercises, savedDate);
+    const prToast = formatPRToast(newPRs);
+    if (prToast) showToast(prToast);
     currentSession = { date: todayStr(), exercises: [] };
     renderWorkout(container);
   });

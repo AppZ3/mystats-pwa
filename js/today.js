@@ -256,7 +256,7 @@ function renderStrengthBlock(block) {
         const rows      = [];
         for (let i = 0; i < Math.max(targetN, existing.length); i++) {
           const s = existing[i] || {};
-          rows.push({ weight: s.weight ?? '', reps: s.reps ?? ex.reps ?? '', done: !!(s.weight || s.reps) });
+          rows.push({ weight: s.weight ?? '', reps: s.reps ?? '', done: !!(s.weight || s.reps) });
         }
         const prev = getPrevExercise(ex.name);
         return `

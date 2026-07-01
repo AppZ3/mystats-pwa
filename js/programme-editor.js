@@ -146,8 +146,11 @@ export async function renderBlockEditor(container, progId) {
     </div>
     <p class="muted" style="font-size:.75rem;margin:.5rem 0">Switching days without saving discards unsaved edits on this day.</p>
     <button class="btn-primary" id="save-day-btn" style="width:100%">Save Day</button>
+    <hr style="border-color:var(--border);margin:1rem 0">
+    ${renderUploadSection(progId)}
   `;
   setupBlockEditorEvents(container, progId);
+  setupUploadEvents(container, progId, () => renderBlockEditor(container, progId));
 }
 
 function blockCardHTML(b, bi) {
@@ -390,5 +393,250 @@ function setupExerciseBlockEvents(container, progId) {
       editingBlocks[+btn.dataset.bi].exercises.splice(+btn.dataset.xi, 1);
       refreshBlockList(container, progId);
     });
+  });
+}
+
+function renderUploadSection(progId) {
+  return `
+    <p class="muted" style="font-size:.8rem;margin-bottom:.5rem">
+      Upload a <strong>PDF</strong>, <strong>Word</strong>, or <strong>JSON</strong> file to fill this programme's week.
+      PDF/Word and simple JSON produce one Strength block per day (refine with the block builder above).
+      JSON with a full <code>blocks</code> array per day is used exactly as written — full one-shot detail.
+    </p>
+    <div class="add-item-row" style="margin-bottom:.5rem">
+      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme</button>
+      <button class="btn-secondary" id="download-prog-template">⬇ Template</button>
+    </div>
+    <input type="file" id="upload-prog-input" accept=".pdf,.doc,.docx,.json" style="display:none">
+    <div id="upload-prog-status" style="font-size:.85rem"></div>
+  `;
+}
+
+const PROG_DAY_MAP = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+
+// Simple flat shape: { name, description, days: { Monday: { label, exercises: [{name,sets,reps}|string] } } }
+// Advanced shape: same, but a day may have `blocks: [...]` instead of `exercises` — used verbatim.
+async function importJsonProgramme(file, progId) {
+  const text = await file.text();
+  let data;
+  try { data = JSON.parse(text); } catch { throw new Error('Invalid JSON file'); }
+  if (!data.days || typeof data.days !== 'object') throw new Error('Missing "days" field — see template for format');
+
+  const sessions = await getSessions(progId);
+  for (const [dayName, dayData] of Object.entries(data.days)) {
+    const dayNum = PROG_DAY_MAP[dayName.toLowerCase()];
+    if (dayNum === undefined) throw new Error(`Unknown day "${dayName}" — use Monday, Tuesday, etc.`);
+    if (Array.isArray(dayData.blocks)) {
+      sessions[dayNum] = { label: dayData.label || '', focus: dayData.focus || '', blocks: dayData.blocks };
+    } else {
+      const exercises = (dayData.exercises || []).map(ex =>
+        typeof ex === 'string' ? { name: ex } : { name: ex.name, sets: ex.sets, reps: ex.reps ? String(ex.reps) : undefined }
+      );
+      sessions[dayNum] = { label: dayData.label || '', focus: '', blocks: exercises.length ? [{ type: 'strength', exercises }] : [] };
+    }
+  }
+  await saveSessions(progId, sessions);
+}
+
+function wrapParsedDaysAsBlocks(parsedDays) {
+  // parsedDays: { [dayNum]: { label, exercises: [{name, sets?, reps?}] } } — from PDF/Word text parsing
+  const sessions = {};
+  for (const [day, data] of Object.entries(parsedDays)) {
+    sessions[day] = {
+      label: data.label || '',
+      focus: '',
+      blocks: data.exercises.length ? [{ type: 'strength', exercises: data.exercises }] : [],
+    };
+  }
+  return sessions;
+}
+
+async function loadMammoth() {
+  if (window.mammoth) return window.mammoth;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
+    s.onload = () => resolve(window.mammoth);
+    s.onerror = () => reject(new Error('Could not load Word parser — check internet connection'));
+    document.head.appendChild(s);
+  });
+}
+
+async function extractDocxText(file) {
+  if (file.name.toLowerCase().endsWith('.doc') && !file.name.toLowerCase().endsWith('.docx')) {
+    throw new Error('Old .doc format is not supported — please save as .docx in Word and try again');
+  }
+  const mammoth = await loadMammoth();
+  const arrayBuffer = await file.arrayBuffer();
+  const result = await mammoth.extractRawText({ arrayBuffer });
+  if (!result.value?.trim()) throw new Error('Could not read Word document — make sure it is a .docx file');
+  return result.value;
+}
+
+async function loadPdfJs() {
+  if (window.pdfjsLib) return window.pdfjsLib;
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+    s.onload = () => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+      resolve(window.pdfjsLib);
+    };
+    s.onerror = () => reject(new Error('Could not load PDF parser — check internet connection'));
+    document.head.appendChild(s);
+  });
+}
+
+async function extractPdfText(file) {
+  const pdfjsLib = await loadPdfJs();
+  const data = await file.arrayBuffer();
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
+  const pageTexts = [];
+  for (let p = 1; p <= pdf.numPages; p++) {
+    const page = await pdf.getPage(p);
+    const content = await page.getTextContent();
+    const byY = {};
+    for (const item of content.items) {
+      const y = Math.round(item.transform[5] / 4) * 4;
+      (byY[y] = byY[y] || []).push(item);
+    }
+    const lines = Object.keys(byY).map(Number).sort((a, b) => b - a)
+      .map(y => byY[y].sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join(' ').trim())
+      .filter(Boolean);
+    pageTexts.push(lines.join('\n'));
+  }
+  return pageTexts.join('\n');
+}
+
+function parseProgrammeText(text) {
+  const DAY_MAP = { monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6, sunday: 0, mon: 1, tue: 2, wed: 3, thu: 4, fri: 5, sat: 6, sun: 0 };
+  const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(Boolean);
+  const days = {};
+  let currentDay = null;
+
+  for (const line of lines) {
+    const lower = line.toLowerCase();
+    const dayKey = Object.keys(DAY_MAP).find(d => lower.startsWith(d) && (lower.length === d.length || /[\s:–\-,\/]/.test(lower[d.length])));
+    if (dayKey) {
+      const dayNum = DAY_MAP[dayKey];
+      const rest = line.substring(dayKey.length).replace(/^[\s:–\-]+/, '').trim();
+      currentDay = dayNum;
+      if (!days[dayNum]) days[dayNum] = { label: rest || '', exercises: [] };
+      else if (rest && !days[dayNum].label) days[dayNum].label = rest;
+      continue;
+    }
+    const dayNumMatch = line.match(/^day\s+([1-7])\b/i);
+    if (dayNumMatch) {
+      const n = parseInt(dayNumMatch[1]);
+      const dayNum = [1, 2, 3, 4, 5, 6, 0][(n - 1) % 7];
+      const rest = line.substring(dayNumMatch[0].length).replace(/^[\s:–\-]+/, '').trim();
+      currentDay = dayNum;
+      if (!days[dayNum]) days[dayNum] = { label: rest || `Day ${n}`, exercises: [] };
+      continue;
+    }
+    if (currentDay === null) continue;
+    if (/^(sets?|reps?|weight|exercise|week|phase|notes?|tempo|rest)\s*$/i.test(line)) continue;
+    if (line.length < 3 || line.length > 80) continue;
+
+    const srPatterns = [
+      /(\d+)\s*[x×X]\s*([\d]+[\-–][\d]+|\d+)/,
+      /(\d+)\s+sets?\s+(?:of\s+)?([\d]+[\-–][\d]+|\d+)\s*reps?/i,
+      /(\d+)\s*sets?[,\s]+([\d]+[\-–][\d]+|\d+)\s*reps?/i,
+    ];
+    let sets = null, reps = null, exerciseName = line;
+    for (const pat of srPatterns) {
+      const m = line.match(pat);
+      if (m) {
+        sets = parseInt(m[1]);
+        reps = m[2].replace('–', '-');
+        exerciseName = (line.slice(0, m.index) + line.slice(m.index + m[0].length)).replace(/[-–:,]+$/, '').trim();
+        break;
+      }
+    }
+    exerciseName = exerciseName.replace(/^[-•*·◦▪▸\d.)\s]+/, '').trim();
+    if (exerciseName.length >= 3 && exerciseName.length <= 60 && !/^\d+(\.\d+)?$/.test(exerciseName)) {
+      const ex = { name: exerciseName };
+      if (sets) ex.sets = sets;
+      if (reps) ex.reps = reps;
+      days[currentDay].exercises.push(ex);
+    }
+  }
+  return days;
+}
+
+function setupUploadEvents(container, progId, onDone) {
+  container.querySelector('#upload-prog-btn')?.addEventListener('click', () => {
+    container.querySelector('#upload-prog-input')?.click();
+  });
+
+  container.querySelector('#upload-prog-input')?.addEventListener('change', async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const status = container.querySelector('#upload-prog-status');
+    e.target.value = '';
+
+    const name = file.name.toLowerCase();
+    const isPdf = name.endsWith('.pdf') || file.type === 'application/pdf';
+    const isWord = name.endsWith('.docx') || name.endsWith('.doc') ||
+      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || file.type === 'application/msword';
+
+    try {
+      if (isPdf || isWord) {
+        status.textContent = isPdf ? 'Parsing PDF…' : 'Parsing Word document…';
+        status.style.color = 'var(--muted)';
+        const text = isPdf ? await extractPdfText(file) : await extractDocxText(file);
+        const parsedDays = parseProgrammeText(text);
+        const totalEx = Object.values(parsedDays).reduce((n, d) => n + d.exercises.length, 0);
+        if (totalEx === 0) {
+          status.textContent = '⚠ No exercises detected. Make sure your document has day names (Monday, Tuesday…) followed by exercise lines.';
+          status.style.color = 'var(--warning, #ffd700)';
+          return;
+        }
+        const sessions = await getSessions(progId);
+        Object.assign(sessions, wrapParsedDaysAsBlocks(parsedDays));
+        await saveSessions(progId, sessions);
+        status.textContent = `✓ Parsed ${totalEx} exercises into Strength blocks — refine with the block builder above.`;
+        status.style.color = 'var(--success)';
+        onDone();
+      } else {
+        status.textContent = 'Reading…';
+        status.style.color = 'var(--muted)';
+        await importJsonProgramme(file, progId);
+        status.textContent = '✓ Programme loaded';
+        status.style.color = 'var(--success)';
+        onDone();
+      }
+    } catch (err) {
+      status.textContent = '✕ ' + err.message;
+      status.style.color = 'var(--danger)';
+    }
+  });
+
+  container.querySelector('#download-prog-template')?.addEventListener('click', () => {
+    const template = {
+      name: 'My Programme',
+      description: 'Optional — e.g. 4-day upper/lower split',
+      days: {
+        Monday: { label: 'Push', exercises: [{ name: 'Bench Press', sets: 4, reps: '6-8' }, { name: 'Overhead Press', sets: 3, reps: '8-10' }] },
+        Tuesday: { label: 'Pull', exercises: [{ name: 'Pull-up', sets: 4, reps: '6-8' }, { name: 'Barbell Row', sets: 3, reps: '8-10' }] },
+        Wednesday: { label: 'Rest', exercises: [] },
+        Thursday: { label: 'Legs', exercises: [{ name: 'Back Squat', sets: 4, reps: '6-8' }] },
+        Friday: { label: 'Upper', exercises: [{ name: 'Incline Bench Press', sets: 3, reps: '8-10' }] },
+        Saturday: { label: 'Rest', exercises: [] },
+        Sunday: {
+          label: 'Advanced example — full block control', focus: 'Optional',
+          blocks: [
+            { type: 'warmup', items: ['Light walk — 5 min', 'Dynamic stretches — 5 min'] },
+            { type: 'skill', name: 'Example Skill', exercises: [{ name: 'Hold progression', sets: 5, target: '10s' }] },
+          ],
+        },
+      },
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'mystats-programme-template.json';
+    a.click();
+    showToast('Template downloaded!');
   });
 }

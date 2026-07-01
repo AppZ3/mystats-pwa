@@ -731,6 +731,11 @@ export async function importBackup(file) {
   // Checklist: keyed by date, use put
   await dbClear('checklist');
   for (const c of (data.checklists || [])) await dbPut('checklist', c);
+
+  // A freshly-imported backup should always get a fresh PR backfill scan against
+  // its own workout history — clear the one-time guard so the next backfill call
+  // (whether via a reload here, or an explicit call from onboarding.js) actually runs.
+  await dbDelete('settings', 'pr_backfill_done');
 }
 
 function showToast(msg) {

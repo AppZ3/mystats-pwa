@@ -475,19 +475,100 @@ git commit -m "chore: register pr-detect.js in the service worker cache"
 
 ---
 
-## Task 6: Deploy and smoke-test
+## Task 6: Fix backfill flag surviving a backup import — `importBackup()` + `onboarding.js`
+
+**Files:**
+- Modify: `js/settings.js`
+- Modify: `js/onboarding.js`
+
+**Interfaces:**
+- Consumes: `ensurePRBackfill` from `js/pr-detect.js` (Task 1)
+
+**Why this task exists:** Task 2's manual verification surfaced a real bug: `ensurePRBackfill()`'s one-time guard (`pr_backfill_done` in the `settings` store) gets set to `true` the very first time `init()` runs — which, on a brand-new install, happens *before* onboarding's "Import Existing Backup" flow ever runs (that flow doesn't call `location.reload()`, so `init()` never runs a second time to re-check the flag). The result: a new user restoring from backup during onboarding gets a permanently empty PR board, even though their imported history has plenty of qualifying sets. The same root cause also affects re-importing a *different* backup later via Settings → Data & Export: `importBackup()` only upserts settings keys actually present in the backup file, so an already-`true` local flag survives that reload untouched too. Both call sites share one function, `importBackup()` (`js/settings.js:707`) — fixing the flag there covers both paths.
+
+- [ ] **Step 1: Clear the backfill flag whenever a backup is imported**
+
+Find, in `js/settings.js`, the `importBackup` function (starts at `js/settings.js:707`). Find its last line before the closing `}` — the exact tail of the function that finishes writing all the imported records (locate it by reading the function; it ends after the `autoStores` loop and any remaining store-restore logic). Add this as the very last statement in the function, before the closing brace:
+```js
+  // A freshly-imported backup should always get a fresh PR backfill scan against
+  // its own workout history — clear the one-time guard so the next backfill call
+  // (whether via a reload here, or an explicit call from onboarding.js) actually runs.
+  await dbDelete('settings', 'pr_backfill_done');
+```
+(`dbDelete` is already imported at the top of `js/settings.js` — no new import needed.)
+
+- [ ] **Step 2: Have onboarding explicitly re-run the backfill after import**
+
+Find, in `js/onboarding.js`:
+```js
+import { dbPut } from './db.js';
+import { importBackup } from './settings.js';
+```
+Replace with:
+```js
+import { dbPut } from './db.js';
+import { importBackup } from './settings.js';
+import { ensurePRBackfill } from './pr-detect.js';
+```
+
+Find:
+```js
+    try {
+      await importBackup(file);
+      status.textContent = '✓ Done! Loading your data…';
+      status.style.color = 'var(--success)';
+      setTimeout(() => { overlay.remove(); onComplete(); }, 1000);
+    } catch (err) {
+```
+Replace with:
+```js
+    try {
+      await importBackup(file);
+      await ensurePRBackfill(); // flag was just cleared by importBackup — this actually scans now
+      status.textContent = '✓ Done! Loading your data…';
+      status.style.color = 'var(--success)';
+      setTimeout(() => { overlay.remove(); onComplete(); }, 1000);
+    } catch (err) {
+```
+
+- [ ] **Step 3: Syntax-check**
+
+Run: `node --input-type=module < js/settings.js` and `node --input-type=module < js/onboarding.js`
+Expected: only `ERR_MODULE_NOT_FOUND`, no `SyntaxError`.
+
+- [ ] **Step 4: Manual verification — both call sites**
+
+Using the same synthetic-workout-seeding approach as Task 2's verification (seed 2-3 `workouts` records directly into IndexedDB via `browser_evaluate` before the reload/import that should trigger backfill):
+
+**Onboarding path:** Clear IndexedDB entirely. Reload — the first `init()` call now runs against a truly empty database, setting `pr_backfill_done = true` (correctly, since there's nothing to backfill yet). Before completing onboarding, seed synthetic `workouts` records directly into IndexedDB (bypassing the UI), matching the pattern used in Task 2. Then use onboarding's "📥 Import Existing Backup" button to import any valid backup JSON (it doesn't need to contain the seeded workouts — the seeded workouts are already in IndexedDB directly, separate from whatever the backup file itself contains; the point is proving the flag gets cleared and re-scanned after `importBackup()` runs, regardless of what's in the imported file). Confirm the PRs tab, once the main app loads, shows PRs derived from the seeded workouts — proving the flag-clear + explicit re-run actually worked.
+
+**Settings re-import path:** From the main app (not onboarding), seed 1-2 more synthetic `workouts` with an even higher value for the same exercise. Go to Settings → Data & Export → import a backup file (any valid one) — confirm the page reloads, and the PRs tab reflects the new highest value from the more-recently-seeded data, proving the reload's `ensurePRBackfill()` call actually re-scanned rather than being blocked by an already-`true` flag.
+
+Clean up seeded/test data afterward.
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add js/settings.js js/onboarding.js
+git commit -m "fix: backup import clears PR backfill flag so imported history actually gets scanned"
+```
+
+---
+
+## Task 7: Deploy and smoke-test
 
 **Files:** none (verification only)
 
 - [ ] **Step 1: Local full-flow smoke-test**
 
 With `vercel dev --listen 3211` running:
-1. Clear IndexedDB, import the `mystats-backup-2026-05-20.json` backup (or any backup with real history) via onboarding — confirm the PRs tab is populated purely from the backfill, with no session logged in this browser session.
+1. Clear IndexedDB, import the `mystats-backup-2026-05-20.json` backup (or any backup with real history) via onboarding — confirm the PRs tab is populated purely from the backfill, with no session logged in this browser session. (If that specific backup file has no workout history, seed synthetic `workouts` records directly into IndexedDB first, as in Task 2/6's verification, then import — the point is confirming the onboarding-import path from Task 6 actually backfills.)
 2. Today tab — log a new all-time-best weight on an existing exercise, Save Session — confirm the "🏆 New PR" toast and the updated PR card.
 3. Same exercise, log a lower weight, save again — confirm no PR toast, normal save toast only.
 4. Train tab — log a brand-new exercise name with a weight, save — confirm a PR toast fires (first-ever record for that name).
 5. Manually add a PR via the existing "+ Add PR" form (unrelated exercise) — confirm the manual flow still works untouched.
 6. Reload the app — confirm the backfill doesn't re-run or duplicate any PR (check the PRs tab count is unchanged after reload).
+7. Settings → Data & Export → import a different backup — confirm this doesn't crash and the reload correctly re-scans (per Task 6's fix) rather than silently skipping.
 
 - [ ] **Step 2: Deploy**
 

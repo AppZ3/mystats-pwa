@@ -1,6 +1,7 @@
 import { dbGet, dbPut, dbAdd, dbGetAll, dbDelete, dbClear, esc } from './db.js';
-import { MORNING_ROUTINE, SUPPLEMENTS, PROGRAMME_A, PROGRAMME_B, TARGETS, DEFAULT_CHECKLIST_ITEMS, ALL_EXERCISES, SCAN_HISTORY } from './profile.js';
-import { getChecklistItems, getMorningRoutine, getSupplements, getProgrammeSchedule, getTargets, getUserProfile, getProgrammeMeta } from './config.js';
+import { MORNING_ROUTINE, SUPPLEMENTS, TARGETS, DEFAULT_CHECKLIST_ITEMS, ALL_EXERCISES, SCAN_HISTORY } from './profile.js';
+import { getChecklistItems, getMorningRoutine, getSupplements, getTargets, getUserProfile } from './config.js';
+import { renderProgrammeManager } from './programme-editor.js';
 
 const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const TIMING_OPTIONS = ['Morning fasted','Morning','Morning with food','Morning with fat','Morning or pre-training','Pre-training','Post-training','With meals','With meals with fat','With lunch','With lunch with fat','Evening','Evening with food','Before bed'];
@@ -41,11 +42,9 @@ let openSections = new Set(['profile']);
 
 // ── Public API ─────────────────────────────────────────────────────────────
 export async function renderSettings(container) {
-  const [checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork, metaA, metaB, apiKeyRecord] = await Promise.all([
+  const [checklistItems, routineSteps, supplements, targets, profile, bloodwork, apiKeyRecord] = await Promise.all([
     getChecklistItems(), getMorningRoutine(), getSupplements(),
-    getProgrammeSchedule('A'), getProgrammeSchedule('B'),
     getTargets(), getUserProfile(), dbGetAll('bloodwork'),
-    getProgrammeMeta('A'), getProgrammeMeta('B'),
     dbGet('settings', 'anthropic_api_key'),
   ]);
   // Prefer localStorage (more reliable) — fall back to IndexedDB
@@ -61,15 +60,14 @@ export async function renderSettings(container) {
     ${section('checklist',   '☑️ Daily Checklist',      renderChecklist(checklistItems))}
     ${section('routine',     '🌅 Morning Routine',      renderRoutine(routineSteps))}
     ${section('supplements', '💊 Supplement Stack',     renderSupplements(supplements))}
-    ${section('progUpload',  '📋 Programme Upload',     renderProgrammeUpload(metaA, metaB))}
-    ${section('progA',       '💪 Programme A Schedule', renderProgramme('A', schedA))}
-    ${section('progB',       '💪 Programme B Schedule', renderProgramme('B', schedB))}
+    ${section('programmes',  '💪 Programmes',           '<div id="programme-manager-mount"></div>')}
     ${section('targets',     '🎯 Body Targets',         renderTargets(targets))}
     ${section('bloodwork',   '🩸 Blood Work',           renderBloodwork(bloodwork))}
     ${section('data',        '📤 Data & Export',        renderData())}
   `;
 
-  setupEvents(container, { checklistItems, routineSteps, supplements, schedA, schedB, targets, profile, bloodwork, savedApiKey });
+  setupEvents(container, { checklistItems, routineSteps, supplements, targets, profile, bloodwork, savedApiKey });
+  await renderProgrammeManager(container);
 }
 
 // ── Accordion wrapper ─────────────────────────────────────────────────────
@@ -213,37 +211,6 @@ function suppRow(s, i) {
     </div>`;
 }
 
-function renderProgramme(prog, schedule) {
-  return `
-    <p class="muted" style="font-size:.8rem;margin-bottom:.6rem">Edit session labels and exercises for each day of Programme ${prog}.</p>
-    <div id="prog-${prog}-days">
-      ${[1,2,3,4,5,6,0].map(day => {
-        const s = schedule[day] || { label: '', exercises: [] };
-        return `
-          <div class="prog-day-block" data-day="${day}" data-prog="${prog}">
-            <div class="prog-day-name">${DAY_NAMES[day]}</div>
-            <input type="text" class="input-field prog-label-in" value="${s.label||''}" placeholder="Session label (or leave blank for Rest)" data-day="${day}" data-prog="${prog}">
-            <div class="edit-list prog-ex-list" id="prog-${prog}-ex-${day}" style="margin:.3rem 0">
-              ${(s.exercises||[]).map((ex, ei) => progExRow(ex, ei, day, prog)).join('')}
-            </div>
-            <div class="add-item-row" style="position:relative">
-              <input type="text" class="input-field prog-ex-search" placeholder="Search or type exercise to add..." data-day="${day}" data-prog="${prog}" style="flex:1" autocomplete="off">
-              <div class="dropdown hidden prog-ex-dd" data-day="${day}" data-prog="${prog}"></div>
-            </div>
-          </div>`;
-      }).join('')}
-    </div>
-    <button class="btn-primary save-prog-btn" data-prog="${prog}" style="margin-top:.75rem">Save Programme ${prog}</button>`;
-}
-
-function progExRow(ex, ei, day, prog) {
-  return `
-    <div class="edit-list-item prog-ex-item" data-day="${day}" data-prog="${prog}" data-ei="${ei}">
-      <span class="prog-ex-name" style="flex:1">${esc(ex)}</span>
-      <button class="btn-icon rem-prog-ex" data-day="${day}" data-prog="${prog}" data-ei="${ei}" aria-label="Remove ${esc(ex)}">✕</button>
-    </div>`;
-}
-
 function renderTargets(targets) {
   return `
     <p class="muted" style="font-size:.8rem;margin-bottom:.6rem">Set your baseline and goals. Use <strong>Sync from Latest Scan</strong> to auto-update baselines after a new InBody.</p>
@@ -327,36 +294,6 @@ function renderBloodwork(bloodwork) {
       </div>` : ''}`;
 }
 
-function renderProgrammeUpload(metaA, metaB) {
-  function metaCard(prog, meta) {
-    if (!meta) return `<p class="muted" style="font-size:.8rem">Programme ${prog}: no upload</p>`;
-    return `
-      <div class="prog-upload-meta">
-        <div class="prog-upload-title">${esc(meta.name)}</div>
-        ${meta.description ? `<div class="muted" style="font-size:.78rem">${esc(meta.description)}</div>` : ''}
-        <div class="muted" style="font-size:.75rem">Uploaded ${fmtDate(meta.uploadedAt.split('T')[0])}</div>
-        <button class="btn-danger btn-sm clear-upload-prog" data-prog="${prog}" style="margin-top:.35rem">Clear</button>
-      </div>`;
-  }
-  return `
-    <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">Upload your programme as a <strong>PDF</strong> or JSON file — exercises auto-fill each day and accuracy tracking activates on the Today tab.</p>
-    <div class="add-item-row" style="margin-bottom:.5rem">
-      <select id="upload-prog-slot" class="input-field" style="flex:0 0 auto;width:9rem">
-        <option value="A">Programme A</option>
-        <option value="B">Programme B</option>
-      </select>
-      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme (PDF, Word or JSON)</button>
-    </div>
-    <input type="file" id="upload-prog-input" accept=".pdf,.doc,.docx,.json" style="display:none">
-    <div id="upload-prog-status" style="font-size:.85rem;margin-bottom:.5rem"></div>
-    <div id="pdf-review-area"></div>
-    <div style="display:flex;flex-direction:column;gap:.4rem;margin-bottom:.75rem">
-      ${metaCard('A', metaA)}
-      ${metaCard('B', metaB)}
-    </div>
-    <button class="btn-secondary" id="download-prog-template" style="width:100%">⬇ Download JSON Template</button>`;
-}
-
 function renderAiInsights(apiKey) {
   const masked = apiKey ? apiKey.slice(0, 8) + '···' + apiKey.slice(-4) : '';
   return `
@@ -426,9 +363,6 @@ function setupEvents(container, data) {
   setupChecklistEvents(container, data.checklistItems);
   setupRoutineEvents(container, data.routineSteps);
   setupSuppEvents(container, data.supplements);
-  setupProgrammeUploadEvents(container);
-  setupProgEvents(container, 'A', data.schedA);
-  setupProgEvents(container, 'B', data.schedB);
   setupTargetEvents(container, data.targets);
   setupBloodworkEvents(container, data.bloodwork);
   setupDataEvents(container);
@@ -653,66 +587,6 @@ function setupSuppEvents(container, initial) {
   });
 }
 
-// Programme schedule
-function setupProgEvents(container, prog, schedule) {
-  // Exercise search dropdowns
-  container.querySelectorAll(`.prog-ex-search[data-prog="${prog}"]`).forEach(input => {
-    const day = +input.dataset.day;
-    const dd = container.querySelector(`.prog-ex-dd[data-day="${day}"][data-prog="${prog}"]`);
-    if (!dd) return;
-
-    input.addEventListener('input', () => {
-      const q = input.value.toLowerCase();
-      if (!q) { dd.classList.add('hidden'); return; }
-      const matches = ALL_EXERCISES.filter(e => e.toLowerCase().includes(q)).slice(0, 6);
-      const custom = input.value.trim();
-      const hasExact = matches.some(m => m.toLowerCase() === custom.toLowerCase());
-      dd.innerHTML = matches.map(e => `<div class="dropdown-item" data-name="${esc(e)}">${esc(e)}</div>`).join('') +
-        (!hasExact && custom ? `<div class="dropdown-item" data-name="${esc(custom)}">+ Add "${esc(custom)}"</div>` : '');
-      dd.classList.remove('hidden');
-      dd.querySelectorAll('.dropdown-item').forEach(item => {
-        item.addEventListener('click', () => {
-          addProgExercise(container, prog, day, item.dataset.name);
-          input.value = ''; dd.classList.add('hidden');
-        });
-      });
-    });
-    const closeHandler = e => {
-      if (!document.contains(container)) {
-        document.removeEventListener('click', closeHandler);
-        return;
-      }
-      if (!input.parentElement?.contains(e.target)) dd.classList.add('hidden');
-    };
-    document.addEventListener('click', closeHandler);
-  });
-
-  // Remove exercise (delegated)
-  container.querySelector(`#prog-${prog}-days`)?.addEventListener('click', e => {
-    const btn = e.target.closest('.rem-prog-ex');
-    if (btn) btn.closest('.prog-ex-item')?.remove();
-  });
-
-  // Save programme
-  container.querySelector(`.save-prog-btn[data-prog="${prog}"]`)?.addEventListener('click', async () => {
-    const newSchedule = {};
-    [1,2,3,4,5,6,0].forEach(day => {
-      const label = container.querySelector(`.prog-label-in[data-day="${day}"][data-prog="${prog}"]`)?.value || '';
-      const exercises = [...container.querySelectorAll(`#prog-${prog}-ex-${day} .prog-ex-name`)].map(el => el.textContent.trim());
-      newSchedule[day] = { label, exercises };
-    });
-    await dbPut('settings', { key: `programme_${prog.toLowerCase()}_schedule`, value: newSchedule });
-    showToast(`Programme ${prog} saved!`);
-  });
-}
-
-function addProgExercise(container, prog, day, name) {
-  const list = container.querySelector(`#prog-${prog}-ex-${day}`);
-  if (!list) return;
-  const ei = list.querySelectorAll('.prog-ex-item').length;
-  list.insertAdjacentHTML('beforeend', progExRow(name, ei, day, prog));
-}
-
 // Targets
 function setupTargetEvents(container, targets) {
   container.querySelector('#save-targets')?.addEventListener('click', async () => {
@@ -781,359 +655,6 @@ function setupBloodworkEvents(container, bloodwork) {
       await dbDelete('bloodwork', +btn.dataset.id);
       renderSettings(container);
     }
-  });
-}
-
-// Programme Upload
-const PROG_DAY_MAP = { sunday:0, monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6 };
-
-async function importProgramme(file, prog) {
-  const text = await file.text();
-  let data;
-  try { data = JSON.parse(text); } catch { throw new Error('Invalid JSON file'); }
-  if (!data.days || typeof data.days !== 'object') throw new Error('Missing "days" field — see template for format');
-
-  const schedule = {};
-  const targets = {};
-
-  for (const [dayName, dayData] of Object.entries(data.days)) {
-    const dayNum = PROG_DAY_MAP[dayName.toLowerCase()];
-    if (dayNum === undefined) throw new Error(`Unknown day "${dayName}" — use Monday, Tuesday, etc.`);
-    const exNames = [];
-    for (const ex of (dayData.exercises || [])) {
-      if (typeof ex === 'string') {
-        exNames.push(ex);
-      } else if (ex?.name) {
-        exNames.push(ex.name);
-        if (ex.sets || ex.reps) targets[ex.name] = { sets: ex.sets || null, reps: String(ex.reps || '') };
-      }
-    }
-    schedule[dayNum] = { label: dayData.label || '', exercises: exNames };
-  }
-
-  const key = prog.toLowerCase();
-  await dbPut('settings', { key: `programme_${key}_schedule`, value: schedule });
-  await dbPut('settings', { key: `programme_${key}_targets`, value: targets });
-  await dbPut('settings', { key: `programme_${key}_meta`, value: {
-    name: data.name || 'Uploaded Programme',
-    description: data.description || '',
-    uploadedAt: new Date().toISOString(),
-  }});
-}
-
-// ── PDF support ────────────────────────────────────────────────────────────
-
-async function loadMammoth() {
-  if (window.mammoth) return window.mammoth;
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js';
-    s.onload = () => resolve(window.mammoth);
-    s.onerror = () => reject(new Error('Could not load Word parser — check internet connection'));
-    document.head.appendChild(s);
-  });
-}
-
-async function extractDocxText(file) {
-  if (file.name.toLowerCase().endsWith('.doc') && !file.name.toLowerCase().endsWith('.docx')) {
-    throw new Error('Old .doc format is not supported — please save as .docx in Word and try again');
-  }
-  const mammoth = await loadMammoth();
-  const arrayBuffer = await file.arrayBuffer();
-  const result = await mammoth.extractRawText({ arrayBuffer });
-  if (!result.value?.trim()) throw new Error('Could not read Word document — make sure it is a .docx file');
-  return result.value;
-}
-
-async function loadPdfJs() {
-  if (window.pdfjsLib) return window.pdfjsLib;
-  return new Promise((resolve, reject) => {
-    const s = document.createElement('script');
-    s.src = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
-    s.onload = () => {
-      window.pdfjsLib.GlobalWorkerOptions.workerSrc =
-        'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-      resolve(window.pdfjsLib);
-    };
-    s.onerror = () => reject(new Error('Could not load PDF parser — check internet connection'));
-    document.head.appendChild(s);
-  });
-}
-
-async function extractPdfText(file) {
-  const pdfjsLib = await loadPdfJs();
-  const data = await file.arrayBuffer();
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
-  const pageTexts = [];
-  for (let p = 1; p <= pdf.numPages; p++) {
-    const page = await pdf.getPage(p);
-    const content = await page.getTextContent();
-    // Group items by Y position (PDF y=0 is bottom, so group & sort descending)
-    const byY = {};
-    for (const item of content.items) {
-      const y = Math.round(item.transform[5] / 4) * 4;
-      (byY[y] = byY[y] || []).push(item);
-    }
-    const lines = Object.keys(byY).map(Number).sort((a, b) => b - a)
-      .map(y => byY[y].sort((a, b) => a.transform[4] - b.transform[4]).map(i => i.str).join(' ').trim())
-      .filter(Boolean);
-    pageTexts.push(lines.join('\n'));
-  }
-  return pageTexts.join('\n');
-}
-
-function parseProgrammeText(text) {
-  const DAY_MAP = {
-    monday:1, tuesday:2, wednesday:3, thursday:4, friday:5, saturday:6, sunday:0,
-    mon:1, tue:2, wed:3, thu:4, fri:5, sat:6, sun:0,
-  };
-
-  const lines = text.split(/[\n\r]+/).map(l => l.trim()).filter(Boolean);
-  const days = {};
-  let currentDay = null;
-
-  for (const line of lines) {
-    const lower = line.toLowerCase();
-
-    // Match day name at start of line: "Monday", "Monday:", "MONDAY — Push"
-    const dayKey = Object.keys(DAY_MAP).find(d =>
-      lower.startsWith(d) && (lower.length === d.length || /[\s:–\-,\/]/.test(lower[d.length]))
-    );
-    if (dayKey) {
-      const dayNum = DAY_MAP[dayKey];
-      const rest = line.substring(dayKey.length).replace(/^[\s:–\-]+/, '').trim();
-      currentDay = dayNum;
-      if (!days[dayNum]) days[dayNum] = { label: rest || '', exercises: [] };
-      else if (rest && !days[dayNum].label) days[dayNum].label = rest;
-      continue;
-    }
-
-    // Match "Day 1" / "Day 2" etc.
-    const dayNumMatch = line.match(/^day\s+([1-7])\b/i);
-    if (dayNumMatch) {
-      const n = parseInt(dayNumMatch[1]);
-      const dayNum = [1, 2, 3, 4, 5, 6, 0][(n - 1) % 7];
-      const rest = line.substring(dayNumMatch[0].length).replace(/^[\s:–\-]+/, '').trim();
-      currentDay = dayNum;
-      if (!days[dayNum]) days[dayNum] = { label: rest || `Day ${n}`, exercises: [] };
-      continue;
-    }
-
-    if (currentDay === null) continue;
-
-    // Skip obvious non-exercise lines
-    if (/^(sets?|reps?|weight|exercise|week|phase|notes?|tempo|rest)\s*$/i.test(line)) continue;
-    if (line.length < 3 || line.length > 80) continue;
-
-    // Extract sets × reps patterns
-    const srPatterns = [
-      /(\d+)\s*[x×X]\s*([\d]+[\-–][\d]+|\d+)/,          // 4x8, 4×8-10
-      /(\d+)\s+sets?\s+(?:of\s+)?([\d]+[\-–][\d]+|\d+)\s*reps?/i,  // 3 sets of 12
-      /(\d+)\s*sets?[,\s]+([\d]+[\-–][\d]+|\d+)\s*reps?/i,
-    ];
-
-    let sets = null, reps = null, exerciseName = line;
-    for (const pat of srPatterns) {
-      const m = line.match(pat);
-      if (m) {
-        sets = parseInt(m[1]);
-        reps = m[2].replace('–', '-');
-        exerciseName = (line.slice(0, m.index) + line.slice(m.index + m[0].length))
-          .replace(/[-–:,]+$/, '').trim();
-        break;
-      }
-    }
-
-    // Clean bullets / leading numbers
-    exerciseName = exerciseName.replace(/^[-•*·◦▪▸\d.)\s]+/, '').trim();
-
-    if (exerciseName.length >= 3 && exerciseName.length <= 60 && !/^\d+(\.\d+)?$/.test(exerciseName)) {
-      const ex = { name: exerciseName };
-      if (sets) ex.sets = sets;
-      if (reps) ex.reps = reps;
-      days[currentDay].exercises.push(ex);
-    }
-  }
-
-  return days;
-}
-
-function showPdfReview(container, prog, parsedDays) {
-  const reviewArea = container.querySelector('#pdf-review-area');
-  if (!reviewArea) return;
-
-  // Keep a mutable copy so removes work without re-parsing
-  const mutable = {};
-  for (const [day, data] of Object.entries(parsedDays)) {
-    mutable[day] = { label: data.label, exercises: data.exercises.map(e => ({ ...e })) };
-  }
-
-  const render = () => {
-    const totalEx = Object.values(mutable).reduce((n, d) => n + d.exercises.length, 0);
-    reviewArea.innerHTML = `
-      <div class="pdf-review-card">
-        <div class="pdf-review-header">
-          <strong>Review Parsed Programme</strong>
-          <span class="muted" style="font-size:.8rem">${totalEx} exercises detected — remove any that look wrong, then save.</span>
-        </div>
-        ${Object.entries(mutable).map(([day, data]) => `
-          <div class="pdf-day-section">
-            <div class="pdf-day-name">${esc(DAY_NAMES[+day])}${data.label ? ' — ' + esc(data.label) : ''}</div>
-            ${data.exercises.length === 0
-              ? '<p class="muted" style="font-size:.8rem;margin:.2rem 0">Rest / no exercises</p>'
-              : data.exercises.map((ex, i) => `
-                <div class="pdf-ex-row">
-                  <span class="pdf-ex-name">${esc(ex.name)}</span>
-                  ${ex.sets && ex.reps ? `<span class="plan-target">${esc(String(ex.sets))}×${esc(String(ex.reps))}</span>` : ''}
-                  <button class="btn-icon pdf-rem-ex" data-day="${day}" data-idx="${i}" aria-label="Remove ${esc(ex.name)}">✕</button>
-                </div>`).join('')}
-          </div>`).join('')}
-        <div style="display:flex;gap:.5rem;margin-top:.75rem">
-          <button class="btn-primary" id="pdf-confirm-save" style="flex:1">Save to Programme ${prog}</button>
-          <button class="btn-secondary" id="pdf-cancel-review">Cancel</button>
-        </div>
-      </div>`;
-
-    reviewArea.querySelectorAll('.pdf-rem-ex').forEach(btn => {
-      btn.onclick = () => {
-        mutable[btn.dataset.day].exercises.splice(+btn.dataset.idx, 1);
-        render();
-      };
-    });
-
-    const confirmBtn = reviewArea.querySelector('#pdf-confirm-save');
-    if (confirmBtn) confirmBtn.onclick = async () => {
-      await saveParsedProgramme(mutable, prog);
-      reviewArea.innerHTML = '';
-      showToast(`Programme ${prog} saved!`);
-      setTimeout(() => { if (document.contains(container)) renderSettings(container); }, 600);
-    };
-
-    const cancelBtn = reviewArea.querySelector('#pdf-cancel-review');
-    if (cancelBtn) cancelBtn.onclick = () => { reviewArea.innerHTML = ''; };
-  };
-
-  render();
-}
-
-async function saveParsedProgramme(parsedDays, prog) {
-  const schedule = {};
-  const targets = {};
-  for (const [dayNum, data] of Object.entries(parsedDays)) {
-    const exNames = data.exercises.map(e => e.name);
-    schedule[dayNum] = { label: data.label || '', exercises: exNames };
-    for (const ex of data.exercises) {
-      if (ex.sets || ex.reps) targets[ex.name] = { sets: ex.sets || null, reps: String(ex.reps || '') };
-    }
-  }
-  const key = prog.toLowerCase();
-  await dbPut('settings', { key: `programme_${key}_schedule`, value: schedule });
-  await dbPut('settings', { key: `programme_${key}_targets`, value: targets });
-  await dbPut('settings', { key: `programme_${key}_meta`, value: {
-    name: 'Uploaded Programme',
-    description: '',
-    uploadedAt: new Date().toISOString(),
-  }});
-}
-
-function setupProgrammeUploadEvents(container) {
-  container.querySelector('#upload-prog-btn')?.addEventListener('click', () => {
-    container.querySelector('#upload-prog-input')?.click();
-  });
-
-  container.querySelector('#upload-prog-input')?.addEventListener('change', async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const status = container.querySelector('#upload-prog-status');
-    const prog = container.querySelector('#upload-prog-slot')?.value || 'A';
-    e.target.value = '';
-
-    const name = file.name.toLowerCase();
-    const isPdf  = name.endsWith('.pdf')  || file.type === 'application/pdf';
-    const isWord = name.endsWith('.docx') || name.endsWith('.doc') ||
-      file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' ||
-      file.type === 'application/msword';
-
-    if (isPdf || isWord) {
-      status.textContent = isPdf ? 'Parsing PDF…' : 'Parsing Word document…';
-      status.style.color = 'var(--muted)';
-      try {
-        const text = isPdf ? await extractPdfText(file) : await extractDocxText(file);
-        const parsedDays = parseProgrammeText(text);
-        const totalEx = Object.values(parsedDays).reduce((n, d) => n + d.exercises.length, 0);
-        if (totalEx === 0) {
-          status.textContent = '⚠ No exercises detected. Make sure your document has day names (Monday, Tuesday…) followed by exercise lines.';
-          status.style.color = 'var(--warning, #ffd700)';
-          return;
-        }
-        status.textContent = `✓ Parsed ${totalEx} exercises — review below before saving.`;
-        status.style.color = 'var(--success)';
-        showPdfReview(container, prog, parsedDays);
-      } catch (err) {
-        status.textContent = '✕ ' + err.message; status.style.color = 'var(--danger)';
-      }
-      return;
-    }
-
-    // JSON path (existing)
-    status.textContent = 'Reading…'; status.style.color = 'var(--muted)';
-    try {
-      await importProgramme(file, prog);
-      status.textContent = `✓ Programme loaded into Programme ${prog}`;
-      status.style.color = 'var(--success)';
-      setTimeout(() => renderSettings(container), 1000);
-    } catch (err) {
-      status.textContent = '✕ ' + err.message; status.style.color = 'var(--danger)';
-    }
-  });
-
-  container.querySelectorAll('.clear-upload-prog').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const prog = btn.dataset.prog;
-      if (!confirm(`Clear the uploaded programme for Programme ${prog}? The schedule itself won't be changed.`)) return;
-      const key = prog.toLowerCase();
-      await Promise.all([
-        dbDelete('settings', `programme_${key}_targets`),
-        dbDelete('settings', `programme_${key}_meta`),
-      ]);
-      showToast(`Programme ${prog} upload cleared`);
-      renderSettings(container);
-    });
-  });
-
-  container.querySelector('#download-prog-template')?.addEventListener('click', () => {
-    const template = {
-      name: "My Programme",
-      description: "Optional — e.g. 4-day upper/lower split",
-      days: {
-        Monday:    { label: "Push",  exercises: [
-          { name: "Bench Press",       sets: 4, reps: "6-8"   },
-          { name: "Overhead Press",    sets: 3, reps: "8-10"  },
-          { name: "Tricep Pushdown",   sets: 3, reps: "12-15" },
-        ]},
-        Tuesday:   { label: "Pull",  exercises: [
-          { name: "Pull-up",           sets: 4, reps: "6-8"   },
-          { name: "Barbell Row",       sets: 3, reps: "8-10"  },
-          { name: "Bicep Curl",        sets: 3, reps: "12-15" },
-        ]},
-        Wednesday: { label: "Rest",  exercises: [] },
-        Thursday:  { label: "Legs",  exercises: [
-          { name: "Back Squat",        sets: 4, reps: "6-8"   },
-          { name: "Romanian Deadlift", sets: 3, reps: "10-12" },
-          { name: "Leg Press",         sets: 3, reps: "12-15" },
-        ]},
-        Friday:    { label: "Upper", exercises: [
-          { name: "Incline Bench Press", sets: 3, reps: "8-10"  },
-          { name: "Cable Row",           sets: 3, reps: "10-12" },
-        ]},
-        Saturday:  { label: "Rest",  exercises: [] },
-        Sunday:    { label: "Rest",  exercises: [] },
-      },
-    };
-    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob); a.download = 'mystats-programme-template.json'; a.click();
-    showToast('Template downloaded!');
   });
 }
 

@@ -555,20 +555,66 @@ git commit -m "fix: backup import clears PR backfill flag so imported history ac
 
 ---
 
-## Task 7: Deploy and smoke-test
+## Task 7: Deploy and smoke-test (Step 1 completed — see amendment below)
 
 **Files:** none (verification only)
 
-- [ ] **Step 1: Local full-flow smoke-test**
+**Status: Step 1 (local smoke-test) ran and passed.** It surfaced one real, non-blocking finding, addressed in the new Task 8 below: `js/today.js`'s `renderStrengthBlock()` pre-fills each unset reps input with the exercise's *prescribed* target rep count as the actual submitted value (not just a placeholder hint) — confirmed at `js/today.js:258-259,280`. Since weight always starts empty (programmes never store a target weight — confirmed during the original design spec), an untouched exercise's set ends up shaped like `{weight: null, reps: '<prescribed count>'}`, which `scanForPRs`'s bodyweight-reps branch (weight absent, reps present) treats as a genuinely-performed set — meaning a single Today-tab session save can silently mint "PRs" for every exercise in that block the user never actually touched, using the programme's prescription instead of real performance. This wasn't anticipated in the original design spec, which reasonably assumed an exercise record's `sets` represent genuine performance. Steps 2-4 (deploy/spot-check/push) were already out of scope per the controller's worktree-timing adjustment and were not run.
 
-With `vercel dev --listen 3211` running:
-1. Clear IndexedDB, import the `mystats-backup-2026-05-20.json` backup (or any backup with real history) via onboarding — confirm the PRs tab is populated purely from the backfill, with no session logged in this browser session. (If that specific backup file has no workout history, seed synthetic `workouts` records directly into IndexedDB first, as in Task 2/6's verification, then import — the point is confirming the onboarding-import path from Task 6 actually backfills.)
-2. Today tab — log a new all-time-best weight on an existing exercise, Save Session — confirm the "🏆 New PR" toast and the updated PR card.
-3. Same exercise, log a lower weight, save again — confirm no PR toast, normal save toast only.
-4. Train tab — log a brand-new exercise name with a weight, save — confirm a PR toast fires (first-ever record for that name).
-5. Manually add a PR via the existing "+ Add PR" form (unrelated exercise) — confirm the manual flow still works untouched.
-6. Reload the app — confirm the backfill doesn't re-run or duplicate any PR (check the PRs tab count is unchanged after reload).
-7. Settings → Data & Export → import a different backup — confirm this doesn't crash and the reload correctly re-scans (per Task 6's fix) rather than silently skipping.
+- [ ] **Step 1: Local full-flow smoke-test** *(completed — do not re-run this task; see Task 9 for the follow-up re-verification)*
+
+---
+
+## Task 8: Fix — stop pre-filling Today's reps input with the prescribed default
+
+**Files:**
+- Modify: `js/today.js`
+
+**Why this task exists:** see Task 7's amendment above. The fix must live in `js/today.js` (not `js/pr-detect.js`) because by the time `scanForPRs` receives an exercise record, a Today-defaulted set and a genuinely-logged Train-tab bodyweight set are structurally identical (`{weight: null, reps: '8'}`) — there is no reliable downstream signal to distinguish them. The only correct fix is not injecting the default in the first place.
+
+Confirmed via `grep -n "ex\.reps" js/today.js` that `renderStrengthBlock`'s `rows.push(...)` line (today.js:259) is the ONLY place the prescribed `ex.reps` value leaks into the actual stored/submitted value — every other reference to `ex.reps` in the file is either a label/placeholder (safe, desired — the prescribed count should still be *visible* as a hint) or an unrelated field (`ex.sets`, the set *count*, not the reps target). This also has a beneficial side effect confirmed safe by inspection: `sessionProgress()`'s done-percentage calculation (today.js, `if ((blockLog[ex.name]?.sets || []).some(s => s.reps || s.weight)) done++;`) currently over-counts untouched exercises as "done" for the exact same reason — after this fix, that calculation becomes more accurate too, not broken.
+
+- [ ] **Step 1: Remove the `?? ex.reps` fallback from the stored value**
+
+Find, in `js/today.js`'s `renderStrengthBlock` function:
+```js
+          const s = existing[i] || {};
+          rows.push({ weight: s.weight ?? '', reps: s.reps ?? ex.reps ?? '', done: !!(s.weight || s.reps) });
+```
+Replace with:
+```js
+          const s = existing[i] || {};
+          rows.push({ weight: s.weight ?? '', reps: s.reps ?? '', done: !!(s.weight || s.reps) });
+```
+(The `placeholder="${esc(ex.reps)}"` a few lines below, on the actual `<input>` element, is untouched by this change — the prescribed target still shows as a greyed-out hint via the browser's native placeholder rendering; it just no longer becomes the submitted value when the user hasn't typed anything.)
+
+- [ ] **Step 2: Syntax-check**
+
+Run: `node --input-type=module < js/today.js`
+Expected: only `ERR_MODULE_NOT_FOUND`, no `SyntaxError`.
+
+- [ ] **Step 3: Manual verification**
+
+Start a local server and use browser tools to: open the Today tab on a day with a multi-exercise strength block, confirm each exercise's reps field now shows the prescribed count as greyed-out placeholder text (not a real typed-looking value) when untouched, and confirm typing a weight and/or reps into ONE exercise's tile still works normally (value becomes real, placeholder disappears as expected for any text input). Save the session, touching only one exercise's inputs — confirm the PRs tab now shows an auto-logged PR ONLY for the exercise you actually touched, not for the other untouched exercises in the same block. Also spot-check that the session progress percentage (shown on the block header) no longer counts the untouched exercises as done.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add js/today.js
+git commit -m "fix: stop pre-filling Today's reps input with the prescribed default — was causing untouched exercises to auto-log false PRs"
+```
+
+---
+
+## Task 9: Re-verify and deploy
+
+**Files:** none (verification only)
+
+- [ ] **Step 1: Re-run the local full-flow smoke-test, focused on the fix**
+
+With a local server running:
+1. Repeat Task 7's Step 1 walkthrough (backfill from seeded/imported history, live PR detection on Today + Train, silence on non-PR saves, first-ever-record detection, manual Add-PR untouched, idempotent reload, Task 6's import-flag-clear fix) to confirm nothing regressed from Task 8's change.
+2. Specifically re-confirm Task 8's fix: a Today-tab session save with only ONE exercise touched produces exactly one new PR (for the touched exercise), not one per exercise in the block.
 
 - [ ] **Step 2: Deploy**
 

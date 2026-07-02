@@ -1,6 +1,7 @@
 import { initDB, dbGetAll, dbGet, dbPut } from './db.js';
 import { ensureSeeded } from './programmes.js';
 import { ensurePRBackfill } from './pr-detect.js';
+import { icon } from './icons.js';
 import { renderToday } from './today.js';
 import { renderWorkout } from './workout.js';
 import { renderRunning } from './running.js';
@@ -11,14 +12,14 @@ import { renderReminders, scheduleAllReminders } from './reminders.js';
 import { renderSettings } from './settings.js';
 
 const TABS = [
-  { id: 'today',    label: '🏠', title: 'Today',    render: renderToday },
-  { id: 'workout',  label: '💪', title: 'Train',    render: renderWorkout },
-  { id: 'run',      label: '🏃', title: 'Run',      render: renderRunning },
-  { id: 'body',     label: '📊', title: 'Body',     render: renderBodyScan },
-  { id: 'progress', label: '📈', title: 'Progress', render: renderProgress },
-  { id: 'prs',      label: '🏆', title: 'PRs',      render: renderPRBoard },
-  { id: 'reminders',label: '🔔', title: 'Alerts',   render: renderReminders },
-  { id: 'settings', label: '⚙️', title: 'Setup',    render: renderSettings },
+  { id: 'today',    label: 'home',        title: 'Today',    render: renderToday },
+  { id: 'workout',  label: 'dumbbell',    title: 'Train',    render: renderWorkout },
+  { id: 'run',      label: 'footprints',  title: 'Run',      render: renderRunning },
+  { id: 'body',     label: 'scan',        title: 'Body',     render: renderBodyScan },
+  { id: 'progress', label: 'trending-up', title: 'Progress', render: renderProgress },
+  { id: 'prs',      label: 'trophy',      title: 'PRs',      render: renderPRBoard },
+  { id: 'reminders',label: 'bell',        title: 'Alerts',   render: renderReminders },
+  { id: 'settings', label: 'settings',    title: 'Setup',    render: renderSettings },
 ];
 
 let activeTab = 'today';
@@ -69,7 +70,7 @@ function buildNav() {
   const nav = document.getElementById('main-nav');
   nav.innerHTML = TABS.map(t => `
     <button class="nav-btn ${t.id === activeTab ? 'active' : ''}" data-tab="${t.id}">
-      <span class="nav-icon">${t.label}</span>
+      <span class="nav-icon-svg">${icon(t.label)}</span>
       <span class="nav-label">${t.title}</span>
     </button>
   `).join('');

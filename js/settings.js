@@ -2,6 +2,7 @@ import { dbGet, dbPut, dbAdd, dbGetAll, dbDelete, dbClear, esc } from './db.js';
 import { MORNING_ROUTINE, SUPPLEMENTS, TARGETS, DEFAULT_CHECKLIST_ITEMS, SCAN_HISTORY } from './profile.js';
 import { getChecklistItems, getMorningRoutine, getSupplements, getTargets, getUserProfile } from './config.js';
 import { renderProgrammeManager } from './programme-editor.js';
+import { icon } from './icons.js';
 
 const DAY_NAMES = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
 const TIMING_OPTIONS = ['Morning fasted','Morning','Morning with food','Morning with fat','Morning or pre-training','Pre-training','Post-training','With meals','With meals with fat','With lunch','With lunch with fat','Evening','Evening with food','Before bed'];
@@ -55,15 +56,15 @@ export async function renderSettings(container) {
       <h2>Settings & Calibrate</h2>
       <p class="muted">Customise everything · Changes save immediately</p>
     </div>
-    ${section('profile',     '⚙️ Profile',             renderProfile(profile))}
-    ${section('aiInsights',  '🤖 AI Scan Insights',    renderAiInsights(savedApiKey))}
-    ${section('checklist',   '☑️ Daily Checklist',      renderChecklist(checklistItems))}
-    ${section('routine',     '🌅 Morning Routine',      renderRoutine(routineSteps))}
-    ${section('supplements', '💊 Supplement Stack',     renderSupplements(supplements))}
-    ${section('programmes',  '💪 Programmes',           '<div id="programme-manager-mount"></div>')}
-    ${section('targets',     '🎯 Body Targets',         renderTargets(targets))}
-    ${section('bloodwork',   '🩸 Blood Work',           renderBloodwork(bloodwork))}
-    ${section('data',        '📤 Data & Export',        renderData())}
+    ${section('profile',     `${icon('settings')} Profile`,          renderProfile(profile))}
+    ${section('aiInsights',  `${icon('bot')} AI Scan Insights`,      renderAiInsights(savedApiKey))}
+    ${section('checklist',   `${icon('list-checks')} Daily Checklist`, renderChecklist(checklistItems))}
+    ${section('routine',     `${icon('sunrise')} Morning Routine`,   renderRoutine(routineSteps))}
+    ${section('supplements', `${icon('pill')} Supplement Stack`,     renderSupplements(supplements))}
+    ${section('programmes',  `${icon('dumbbell')} Programmes`,       '<div id="programme-manager-mount"></div>')}
+    ${section('targets',     `${icon('target')} Body Targets`,       renderTargets(targets))}
+    ${section('bloodwork',   `${icon('droplet')} Blood Work`,        renderBloodwork(bloodwork))}
+    ${section('data',        `${icon('upload')} Data & Export`,      renderData())}
   `;
 
   setupEvents(container, { checklistItems, routineSteps, supplements, targets, profile, bloodwork, savedApiKey });
@@ -142,7 +143,7 @@ function checklistRow(item, i) {
     <div class="edit-list-item" data-idx="${i}">
       <input type="text" class="set-input cl-icon-in" value="${item.icon||''}" placeholder="🏃" style="width:3rem;text-align:center">
       <input type="text" class="input-field cl-label-in" value="${item.label}" style="flex:1" placeholder="Label">
-      <button class="btn-icon rem-cl" data-idx="${i}">✕</button>
+      <button class="btn-icon rem-cl" data-idx="${i}">${icon('x', 14)}</button>
     </div>`;
 }
 
@@ -167,7 +168,7 @@ function routineRow(step, i) {
     <div class="edit-list-item" data-idx="${i}">
       <span class="drag-handle">⠿</span>
       <input type="text" class="input-field routine-step-in" value="${step}" style="flex:1">
-      <button class="btn-icon rem-routine" data-idx="${i}">✕</button>
+      <button class="btn-icon rem-routine" data-idx="${i}">${icon('x', 14)}</button>
     </div>`;
 }
 
@@ -206,7 +207,7 @@ function suppRow(s, i) {
         </select>
         <label class="meta-label">+fat</label>
         <input type="checkbox" class="supp-fat-in" data-idx="${i}" ${s.withFat?'checked':''}>
-        <button class="btn-icon rem-supp" data-idx="${i}">✕</button>
+        <button class="btn-icon rem-supp" data-idx="${i}">${icon('x', 14)}</button>
       </div>
     </div>`;
 }
@@ -289,7 +290,7 @@ function renderBloodwork(bloodwork) {
             <span>${fmtDate(b.date)}</span>
             <span class="muted">${b.notes||''}</span>
             <span class="muted">${Object.keys(b.markers||{}).length} markers</span>
-            <button class="btn-icon delete-blood" data-id="${b.id}">✕</button>
+            <button class="btn-icon delete-blood" data-id="${b.id}">${icon('x', 14)}</button>
           </div>`).join('')}
       </div>` : ''}`;
 }
@@ -300,7 +301,7 @@ function renderAiInsights(apiKey) {
     <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">
       After each InBody scan, Claude analyses your results and generates personalised programme adjustments for the next 30 days. Your key is stored only on this device.
     </p>
-    ${apiKey ? `<div class="api-key-saved-badge">✓ API key saved &nbsp;<span style="font-family:monospace;opacity:.7">${masked}</span></div>` : ''}
+    ${apiKey ? `<div class="api-key-saved-badge icon-inline">${icon('check', 14)} API key saved &nbsp;<span style="font-family:monospace;opacity:.7">${masked}</span></div>` : ''}
     <div class="form-group" style="margin-top:${apiKey ? '.6rem' : '0'}">
       <label>${apiKey ? 'Replace API Key' : 'Anthropic API Key'}</label>
       <div style="display:flex;gap:.4rem;align-items:center">
@@ -323,13 +324,13 @@ function renderData() {
   return `
     <p class="muted" style="font-size:.8rem;margin-bottom:.75rem">Export your data as a JSON backup, or import a backup from another device.</p>
     <div style="display:flex;gap:.5rem;flex-wrap:wrap">
-      <button class="btn-primary" id="export-data" style="flex:1">📤 Export All Data</button>
-      <button class="btn-secondary" id="import-data-btn" style="flex:1">📥 Import Backup</button>
+      <button class="btn-primary" id="export-data" style="flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem">${icon('upload', 16)}<span>Export All Data</span></button>
+      <button class="btn-secondary" id="import-data-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem">${icon('download', 16)}<span>Import Backup</span></button>
     </div>
     <input type="file" id="import-file-input" accept=".json" style="display:none">
     <div id="import-status" style="margin-top:.5rem;font-size:.85rem"></div>
     <div class="card-label" style="margin-top:1rem;color:var(--danger)">Danger Zone</div>
-    <button class="btn-danger" id="reset-app">⚠️ Reset All App Data</button>`;
+    <button class="btn-danger" id="reset-app" style="display:flex;align-items:center;justify-content:center;gap:.4rem">${icon('triangle-alert', 16)}<span>Reset All App Data</span></button>`;
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -388,7 +389,7 @@ function setupProfileEvents(container) {
     saveTimer = setTimeout(async () => {
       await dbPut('settings', { key: 'user_profile', value: readProfileForm(container) });
       const btn = container.querySelector('#save-profile');
-      if (btn) { btn.textContent = '✓ Saved'; setTimeout(() => { btn.textContent = 'Save Profile'; }, 1500); }
+      if (btn) { btn.innerHTML = `${icon('check', 15)} Saved`; setTimeout(() => { btn.textContent = 'Save Profile'; }, 1500); }
     }, 600);
   };
 
@@ -632,7 +633,7 @@ function setupBloodworkEvents(container, bloodwork) {
     if (!form) return;
     const showing = form.style.display !== 'none';
     form.style.display = showing ? 'none' : 'block';
-    container.querySelector('#toggle-blood-form').textContent = showing ? '+ Log Results' : '✕ Cancel';
+    container.querySelector('#toggle-blood-form').innerHTML = showing ? '+ Log Results' : `${icon('x', 14)} Cancel`;
   });
 
   container.querySelector('#save-bloodwork')?.addEventListener('click', async () => {

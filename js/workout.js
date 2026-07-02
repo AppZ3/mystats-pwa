@@ -87,8 +87,8 @@ function renderWorkoutCard(w) {
         <span class="workout-date">${formatDate(w.date)}</span>
         <span class="badge info">${w.exercises.length} ex · ${totalSets} sets</span>
         <div style="margin-left:auto;display:flex;gap:.25rem">
-          <button class="btn-icon edit-workout" data-id="${w.id}" title="Edit">✏️</button>
-          <button class="btn-icon delete-workout" data-id="${w.id}" title="Delete">✕</button>
+          <button class="btn-icon edit-workout" data-id="${w.id}" title="Edit">${icon('pencil', 14)}</button>
+          <button class="btn-icon delete-workout" data-id="${w.id}" title="Delete">${icon('x', 14)}</button>
         </div>
       </div>
       <div class="workout-exercises">
@@ -118,7 +118,7 @@ function renderSessionExercises() {
       <div class="session-ex-header">
         <strong>${esc(ex.name)}</strong>
         ${prevLabel}
-        <button class="btn-icon remove-ex" data-ei="${ei}" aria-label="Remove ${esc(ex.name)}">✕</button>
+        <button class="btn-icon remove-ex" data-ei="${ei}" aria-label="Remove ${esc(ex.name)}">${icon('x', 14)}</button>
       </div>
       <div class="sets-list">
         ${ex.sets.map((s, si) => {

@@ -1,12 +1,16 @@
 import { dbAdd, dbGetAll, dbDelete, esc, todayStr } from './db.js';
+import { icon } from './icons.js';
 
 const TYPE_CONFIG = {
-  weight: { label: 'Weight',    unit: 'kg',   icon: '🏋️' },
-  reps:   { label: 'Max Reps',  unit: 'reps', icon: '🔁' },
-  hold:   { label: 'Hold Time', unit: 'sec',  icon: '⏱️' },
-  skill:  { label: 'Skill',     unit: '',     icon: '🤸' },
+  weight: { label: 'Weight',    unit: 'kg',   icon: 'dumbbell' },
+  reps:   { label: 'Max Reps',  unit: 'reps', icon: 'repeat' },
+  hold:   { label: 'Hold Time', unit: 'sec',  icon: 'clock' },
+  skill:  { label: 'Skill',     unit: '',     icon: 'person-standing' },
 };
 
+// Gold/silver/bronze medal emoji are kept deliberately (not swapped for monochrome
+// icons) — the color itself is the information (rank), and gold fits the app's own
+// accent palette already.
 const MEDAL = ['🥇','🥈','🥉'];
 
 function formatDate(d) { return new Date(d + 'T00:00:00').toLocaleDateString('en-AU', { day:'numeric', month:'short', year:'numeric' }); }
@@ -37,7 +41,7 @@ export async function renderPRBoard(container) {
       <div class="card-label">New Personal Record</div>
       <div class="pr-type-tabs" id="pr-type-tabs">
         ${Object.entries(TYPE_CONFIG).map(([k, v]) => `
-          <button class="pr-type-tab ${k === 'weight' ? 'active' : ''}" data-type="${k}">${v.icon} ${v.label}</button>
+          <button class="pr-type-tab ${k === 'weight' ? 'active' : ''}" data-type="${k}">${icon(v.icon, 15)} ${v.label}</button>
         `).join('')}
       </div>
       <div class="form-grid">
@@ -91,7 +95,7 @@ function renderPRCard({ exercise, best, all }, rank) {
         </div>
         <div class="pr-actions">
           <button class="btn-icon toggle-pr-history" data-exercise="${esc(exercise)}" title="History">▾</button>
-          <button class="btn-icon delete-pr" data-id="${best.id}" data-exercise="${esc(exercise)}" title="Delete best">✕</button>
+          <button class="btn-icon delete-pr" data-id="${best.id}" data-exercise="${esc(exercise)}" title="Delete best">${icon('x', 14)}</button>
         </div>
       </div>
       <div class="pr-history-list hidden" id="pr-hist-${esc(exercise)}">
@@ -99,7 +103,7 @@ function renderPRCard({ exercise, best, all }, rank) {
           <div class="pr-history-entry">
             <span>${i === 0 ? '🏆 ' : ''}${formatDate(pr.date)}</span>
             <span class="pr-h-val">${pr.value}${pr.unit ? ` ${pr.unit}` : ''}</span>
-            <button class="btn-icon delete-pr-entry" data-id="${pr.id}" data-exercise="${esc(exercise)}" title="Delete">✕</button>
+            <button class="btn-icon delete-pr-entry" data-id="${pr.id}" data-exercise="${esc(exercise)}" title="Delete">${icon('x', 14)}</button>
           </div>
         `).join('')}
         <button class="btn-secondary btn-sm add-pr-for-exercise" data-exercise="${esc(exercise)}" style="margin-top:.4rem;width:100%">

@@ -1,4 +1,5 @@
 import { dbAdd, dbPut, dbGetAll, dbDelete } from './db.js';
+import { icon } from './icons.js';
 
 let editingReminder = null;
 
@@ -31,7 +32,7 @@ export async function renderReminders(container) {
 
     ${!notifSupported ? '<div class="card"><p class="muted">Notifications not supported in this browser.</p></div>' : ''}
     ${notifSupported && !notifGranted ? `<div class="card notif-prompt"><p>Enable browser notifications to get supplement and training reminders.</p><button id="enable-notif" class="btn-primary" style="margin-top:.5rem">Enable Notifications</button></div>` : ''}
-    ${notifGranted ? '<div class="card notif-ok"><p class="success">✓ Notifications enabled</p></div>' : ''}
+    ${notifGranted ? `<div class="card notif-ok"><p class="success icon-inline">${icon('check', 14)} Notifications enabled</p></div>` : ''}
 
     <div class="card" id="reminder-form-card">
       ${er ? `<div class="editing-banner">✏️ Editing: ${er.name} <button id="cancel-rem-edit" class="btn-cancel">Cancel</button></div>` : ''}
@@ -93,8 +94,8 @@ function renderReminderItem(r) {
           <input type="checkbox" class="toggle-rem" data-id="${r.id}" ${r.enabled ? 'checked' : ''}>
           <span class="toggle-slider"></span>
         </label>
-        <button class="btn-icon edit-rem" data-id="${r.id}" title="Edit">✏️</button>
-        <button class="btn-icon delete-rem" data-id="${r.id}" title="Delete">✕</button>
+        <button class="btn-icon edit-rem" data-id="${r.id}" title="Edit">${icon('pencil', 14)}</button>
+        <button class="btn-icon delete-rem" data-id="${r.id}" title="Delete">${icon('x', 14)}</button>
       </div>
     </div>
   `;

@@ -1,4 +1,5 @@
 import { dbAdd, dbPut, dbGetAll, dbDelete, todayStr } from './db.js';
+import { icon } from './icons.js';
 
 let editingRun = null; // null = new, object = editing
 
@@ -125,8 +126,8 @@ function renderRunCard(r) {
         <span>${formatDate(r.date)}</span>
         <span class="badge info">${r.type || 'Run'}</span>
         <div style="margin-left:auto;display:flex;gap:.25rem">
-          <button class="btn-icon edit-run" data-id="${r.id}" title="Edit">✏️</button>
-          <button class="btn-icon delete-run" data-id="${r.id}" title="Delete">✕</button>
+          <button class="btn-icon edit-run" data-id="${r.id}" title="Edit">${icon('pencil', 14)}</button>
+          <button class="btn-icon delete-run" data-id="${r.id}" title="Delete">${icon('x', 14)}</button>
         </div>
       </div>
       <div class="run-stats">
@@ -153,11 +154,11 @@ function updatePreview(container) {
   const speed = calcSpeed(dist, secs);
   preview.classList.remove('hidden');
   preview.innerHTML = `<div class="preview-row">
-    ${dist ? `<span>📏 ${dist} km</span>` : ''}
-    ${secs ? `<span>⏱ ${formatDuration(secs)}</span>` : ''}
-    ${pace ? `<span>🏃 ${pace}</span>` : ''}
-    ${speed ? `<span>💨 ${speed} km/h</span>` : ''}
-    ${bpm ? `<span>❤️ ${bpm} BPM</span>` : ''}
+    ${dist ? `<span>${icon('ruler', 14)} ${dist} km</span>` : ''}
+    ${secs ? `<span>${icon('clock', 14)} ${formatDuration(secs)}</span>` : ''}
+    ${pace ? `<span>${icon('footprints', 14)} ${pace}</span>` : ''}
+    ${speed ? `<span>${icon('wind', 14)} ${speed} km/h</span>` : ''}
+    ${bpm ? `<span>${icon('heart', 14)} ${bpm} BPM</span>` : ''}
   </div>`;
 }
 

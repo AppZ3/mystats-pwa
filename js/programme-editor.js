@@ -1,5 +1,6 @@
 import { esc } from './db.js';
 import { listProgrammes, createProgramme, renameProgramme, deleteProgramme, getSessions, saveSessions, getWeekSessions, saveWeekSessions, BLOCK_TYPES, MAX_PROGRAMMES } from './programmes.js';
+import { icon } from './icons.js';
 
 function showToast(msg) {
   let t = document.querySelector('.toast');
@@ -49,7 +50,7 @@ function progMgrRow(p) {
       <div class="prog-mgr-actions">
         <button class="btn-secondary btn-sm rename-prog-btn" data-id="${p.id}">Rename</button>
         <button class="btn-secondary btn-sm edit-blocks-btn" data-id="${p.id}">${expandedId === p.id ? 'Close' : 'Edit'}</button>
-        <button class="btn-icon delete-prog-btn" data-id="${p.id}" aria-label="Delete ${esc(p.name)}">✕</button>
+        <button class="btn-icon delete-prog-btn" data-id="${p.id}" aria-label="Delete ${esc(p.name)}">${icon('x', 14)}</button>
       </div>
     </div>`;
 }
@@ -174,7 +175,7 @@ function blockCardHTML(b, bi) {
         <div class="block-card-actions">
           <button class="btn-icon move-block-up" data-bi="${bi}" aria-label="Move up">↑</button>
           <button class="btn-icon move-block-down" data-bi="${bi}" aria-label="Move down">↓</button>
-          <button class="btn-icon remove-block" data-bi="${bi}" aria-label="Remove block">✕</button>
+          <button class="btn-icon remove-block" data-bi="${bi}" aria-label="Remove block">${icon('x', 14)}</button>
         </div>
       </div>
       ${blockBodyHTML(b, bi, cfg.kind)}
@@ -195,7 +196,7 @@ function itemsBlockHTML(b, bi) {
       ${items.map((item, xi) => `
         <div class="edit-list-item" data-bi="${bi}" data-xi="${xi}">
           <input type="text" class="input-field blk-item-in" value="${item.replace(/"/g, '&quot;')}" data-bi="${bi}" data-xi="${xi}">
-          <button class="btn-icon rem-blk-item" data-bi="${bi}" data-xi="${xi}" aria-label="Remove item">✕</button>
+          <button class="btn-icon rem-blk-item" data-bi="${bi}" data-xi="${xi}" aria-label="Remove item">${icon('x', 14)}</button>
         </div>`).join('')}
     </div>
     <button class="btn-secondary btn-sm add-blk-item" data-bi="${bi}">+ Add Item</button>`;
@@ -378,7 +379,7 @@ function exerciseRowHTML(ex, bi, xi, fields) {
   return `
     <div class="blk-ex-row" data-bi="${bi}" data-xi="${xi}">
       ${fields.map(f => `<input type="${f.type || 'text'}" class="input-field ${f.cls}" data-bi="${bi}" data-xi="${xi}" data-field="${f.key}" value="${String(ex[f.key] ?? '').replace(/"/g, '&quot;')}" placeholder="${f.placeholder}">`).join('')}
-      <button class="btn-icon rem-blk-exercise" data-bi="${bi}" data-xi="${xi}" aria-label="Remove exercise">✕</button>
+      <button class="btn-icon rem-blk-exercise" data-bi="${bi}" data-xi="${xi}" aria-label="Remove exercise">${icon('x', 14)}</button>
     </div>`;
 }
 
@@ -427,8 +428,8 @@ function renderUploadSection(progId) {
       content in one upload — see the template.
     </p>
     <div class="add-item-row" style="margin-bottom:.5rem">
-      <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme</button>
-      <button class="btn-secondary" id="download-prog-template">⬇ Template</button>
+      <button class="btn-primary" id="upload-prog-btn" style="flex:1;display:flex;align-items:center;justify-content:center;gap:.4rem">${icon('clipboard', 16)}<span>Upload Programme</span></button>
+      <button class="btn-secondary" id="download-prog-template" style="display:flex;align-items:center;justify-content:center;gap:.4rem">${icon('download', 16)}<span>Template</span></button>
     </div>
     <input type="file" id="upload-prog-input" accept=".pdf,.doc,.docx,.json" style="display:none">
     <div id="upload-prog-status" style="font-size:.85rem"></div>

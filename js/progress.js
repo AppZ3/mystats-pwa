@@ -1,5 +1,6 @@
 import { SCAN_HISTORY, TARGETS } from './profile.js';
 import { dbGetAll, dbGet, dbPut, esc, localDateStr } from './db.js';
+import { icon } from './icons.js';
 
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 
@@ -261,7 +262,7 @@ function renderStreakSection(workouts) {
       <div class="streak-row">
         <div class="streak-stat">
           <div class="s-val">${streak}</div>
-          <div class="s-label">Day Streak 🔥</div>
+          <div class="s-label icon-inline">Day Streak ${icon('flame', 14)}</div>
         </div>
         <div class="streak-stat">
           <div class="s-val">${thisWeek}/${weekTarget}</div>
@@ -328,12 +329,12 @@ function renderCheckinHtml(data) {
     <div class="checkin-summary">${esc(summary)}</div>
     ${wins?.length ? `
       <div class="checkin-section">
-        <div class="checkin-section-title">✅ Wins this week</div>
+        <div class="checkin-section-title icon-inline">${icon('check', 15)} Wins this week</div>
         <ul class="checkin-items">${wins.map(w => `<li>${esc(w)}</li>`).join('')}</ul>
       </div>` : ''}
     ${focus?.length ? `
       <div class="checkin-section">
-        <div class="checkin-section-title">🎯 Focus next week</div>
+        <div class="checkin-section-title icon-inline">${icon('target', 15)} Focus next week</div>
         <ul class="checkin-items">${focus.map(f => `<li>${esc(f)}</li>`).join('')}</ul>
       </div>` : ''}
     ${goal ? `<div class="checkin-goal">Next week goal: <strong>${esc(goal)}</strong></div>` : ''}
@@ -490,7 +491,7 @@ function renderStrengthPR(workouts, exerciseName) {
   const latest = points[points.length - 1];
   const gain = (latest.weight - first.weight).toFixed(1);
   prEl.innerHTML = `
-    <div class="pr-chip">🏆 PR <strong>${pr.weight}kg</strong> on ${formatDate(pr.date)}</div>
+    <div class="pr-chip icon-inline">${icon('trophy', 14)} PR <strong>${pr.weight}kg</strong> on ${formatDate(pr.date)}</div>
     <div class="pr-chip ${+gain >= 0 ? 'pos' : 'neg'}">${+gain >= 0 ? '▲' : '▼'} ${Math.abs(gain)}kg since first log</div>
   `;
 }
@@ -532,7 +533,7 @@ function renderHistoryEntry(w) {
     const best = sets.length ? sets.reduce((b, s) => parseFloat(s.weight) > parseFloat(b.weight) ? s : b, sets[0]) : null;
     return `<span class="hist-ex-tag">${e.name}${best ? ` <strong>${best.weight}kg</strong>` : ''}</span>`;
   });
-  if (hasRun) tags.push(`<span class="hist-ex-tag run-tag">🏃 ${runEntry.run.distance ? runEntry.run.distance + 'km' : runEntry.run.duration}</span>`);
+  if (hasRun) tags.push(`<span class="hist-ex-tag run-tag icon-inline">${icon('footprints', 12)} ${runEntry.run.distance ? runEntry.run.distance + 'km' : runEntry.run.duration}</span>`);
 
   return `
     <div class="hist-entry">

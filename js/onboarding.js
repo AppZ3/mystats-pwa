@@ -1,12 +1,13 @@
 import { dbPut } from './db.js';
 import { importBackup } from './settings.js';
 import { ensurePRBackfill } from './pr-detect.js';
+import { icon } from './icons.js';
 
 const GOALS = [
-  { id: 'muscle',      label: '💪 Build Muscle' },
-  { id: 'fat',         label: '🔥 Lose Fat' },
-  { id: 'performance', label: '⚡ Performance' },
-  { id: 'health',      label: '❤️ General Health' },
+  { id: 'muscle',      iconName: 'dumbbell', label: 'Build Muscle' },
+  { id: 'fat',         iconName: 'flame',    label: 'Lose Fat' },
+  { id: 'performance', iconName: 'zap',      label: 'Performance' },
+  { id: 'health',      iconName: 'heart',    label: 'General Health' },
 ];
 
 export async function showOnboarding(onComplete) {
@@ -14,7 +15,7 @@ export async function showOnboarding(onComplete) {
   overlay.className = 'ob-overlay';
   overlay.innerHTML = `
     <div class="ob-card">
-      <div class="ob-logo">🏋️</div>
+      <div class="ob-logo">${icon('dumbbell', 36)}</div>
       <h1 class="ob-title">Welcome to MyStats</h1>
       <p class="ob-sub">Your personal fitness tracker. Fill in a few details to get started — you can change everything later in Settings.</p>
 
@@ -57,7 +58,7 @@ export async function showOnboarding(onComplete) {
           <label>Primary Goal</label>
           <div class="ob-goal-grid">
             ${GOALS.map((g, i) => `
-              <button class="ob-goal-btn ${i === 0 ? 'active' : ''}" data-goal="${g.id}">${g.label}</button>
+              <button class="ob-goal-btn ${i === 0 ? 'active' : ''}" data-goal="${g.id}">${icon(g.iconName, 16)}<span>${g.label}</span></button>
             `).join('')}
           </div>
         </div>
@@ -71,7 +72,7 @@ export async function showOnboarding(onComplete) {
 
         <div style="text-align:center">
           <p class="muted ob-hint" style="margin-bottom:.6rem">Already have a MyStats backup? Load it instead.</p>
-          <button class="btn-secondary" id="ob-import-btn" style="width:100%">📥 Import Existing Backup</button>
+          <button class="btn-secondary" id="ob-import-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:.4rem">${icon('download', 16)}<span>Import Existing Backup</span></button>
           <input type="file" id="ob-import-input" accept=".json" style="display:none">
           <div id="ob-import-status" style="margin-top:.4rem;font-size:.85rem"></div>
         </div>

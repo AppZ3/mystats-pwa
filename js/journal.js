@@ -1,6 +1,8 @@
 import { dbAdd, dbPut, dbGetAll, dbDelete, esc } from './db.js';
+import { icon } from './icons.js';
 
-const ENERGY_LABELS = ['', '😴', '😐', '🙂', '💪', '🔥'];
+const ENERGY_ICONS = ['', 'moon', 'meh', 'smile', 'dumbbell', 'flame'];
+const ENERGY_TITLES = ['', 'Exhausted', 'Neutral', 'Good', 'Strong', 'On fire'];
 
 export function renderJournalPrompt(container, workoutId, date) {
   let el = container.querySelector('#journal-prompt-wrap');
@@ -11,17 +13,17 @@ export function renderJournalPrompt(container, workoutId, date) {
   }
   el.innerHTML = `
     <div class="journal-prompt">
-      <div class="journal-prompt-title">📓 How was the session?</div>
+      <div class="journal-prompt-title icon-inline">${icon('notebook', 16)} How was the session?</div>
       <div class="energy-row">
         <span class="energy-label">Energy</span>
         ${[1,2,3,4,5].map(n => `
-          <button class="energy-btn" data-energy="${n}" title="${ENERGY_LABELS[n]}">${ENERGY_LABELS[n]}</button>
+          <button class="energy-btn" data-energy="${n}" title="${ENERGY_TITLES[n]}">${icon(ENERGY_ICONS[n], 18)}</button>
         `).join('')}
       </div>
       <textarea id="journal-notes" class="input-field" rows="2"
         placeholder="How did it feel? Any PRs, niggles, wins…" style="resize:none;margin-bottom:.5rem"></textarea>
       <button id="save-journal" class="btn-secondary btn-sm">Save Note</button>
-      <div id="journal-saved" class="journal-saved-badge hidden">✓ Saved</div>
+      <div id="journal-saved" class="journal-saved-badge hidden icon-inline">${icon('check', 14)} Saved</div>
     </div>
   `;
 
@@ -72,7 +74,7 @@ function renderJournalEntry(e) {
       <div class="journal-entry-header">
         <span class="journal-date">${date}</span>
         <span class="journal-energy">${energyLabel}</span>
-        <button class="btn-icon delete-journal-entry" data-id="${e.id}" title="Delete">✕</button>
+        <button class="btn-icon delete-journal-entry" data-id="${e.id}" title="Delete">${icon('x', 14)}</button>
       </div>
       ${e.notes ? `<div class="journal-notes-text">${esc(e.notes)}</div>` : ''}
     </div>

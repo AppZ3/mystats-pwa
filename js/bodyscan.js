@@ -1,5 +1,6 @@
 import { SCAN_HISTORY, TARGETS } from './profile.js';
 import { dbAdd, dbPut, dbGet, dbGetAll, dbDelete, esc, todayStr } from './db.js';
+import { icon } from './icons.js';
 
 let editingScan = null;
 let addingNewScan = false;
@@ -321,7 +322,7 @@ export async function renderBodyScan(container) {
   container.innerHTML = `
     <div class="section-header">
       <h2>Body Scans</h2>
-      <button class="btn-primary btn-sm" id="add-scan-btn">${showForm ? '✕ Cancel' : '+ Add Scan'}</button>
+      <button class="btn-primary btn-sm" id="add-scan-btn">${showForm ? `${icon('x', 14)} Cancel` : '+ Add Scan'}</button>
     </div>
 
     ${latest && !showForm ? renderLatestCard(latest, prev) : ''}
@@ -332,13 +333,13 @@ export async function renderBodyScan(container) {
     </div>
 
     ${showForm ? `<div class="card" id="scan-form-card">
-      ${es ? `<div class="editing-banner">✏️ Editing scan from ${formatDate(es.date)} <button id="cancel-scan-edit" class="btn-cancel">Cancel</button></div>` : ''}
+      ${es ? `<div class="editing-banner icon-inline">${icon('pencil', 14)} Editing scan from ${formatDate(es.date)} <button id="cancel-scan-edit" class="btn-cancel">Cancel</button></div>` : ''}
       <div class="card-label">${es ? 'Edit Scan' : 'New InBody Scan'}</div>
       ${!es ? `
         <div class="scan-upload-row">
           <input type="file" id="scan-file-input" accept=".pdf,.jpg,.jpeg,.png,.webp" style="display:none">
-          <button class="btn-secondary" id="upload-scan-btn" style="width:100%">
-            📄 Upload from file ${hasApiKey ? '(Claude AI reads it)' : '(OCR)'}
+          <button class="btn-secondary" id="upload-scan-btn" style="width:100%;display:flex;align-items:center;justify-content:center;gap:.4rem">
+            ${icon('file-text', 16)}<span>Upload from file ${hasApiKey ? '(Claude AI reads it)' : '(OCR)'}</span>
           </button>
         </div>
         <div id="scan-upload-status"></div>
@@ -416,7 +417,7 @@ function renderLatestCard(latest, prev) {
           ${scanRow('Right Leg', latest.rightLeg, prev?.rightLeg, 'kg')}
           ${scanRow('Left Leg', latest.leftLeg, prev?.leftLeg, 'kg')}
         </div>` : ''}
-      ${latest.notes ? `<p class="muted" style="margin-top:.5rem;font-size:.82rem">📝 ${latest.notes}</p>` : ''}
+      ${latest.notes ? `<p class="muted icon-inline" style="margin-top:.5rem;font-size:.82rem">${icon('square-pen', 13)} ${latest.notes}</p>` : ''}
     </div>
   `;
 }
@@ -532,11 +533,11 @@ function renderScanHistoryCard(s) {
           ${s.inbodyScore != null ? `<span class="badge info">Score ${s.inbodyScore}</span>` : ''}
         </div>
         <div style="margin-left:auto;display:flex;gap:.25rem">
-          ${!s.seeded ? `<button class="btn-icon edit-scan" data-id="${s.id}" title="Edit">✏️</button>` : '<span class="muted" style="font-size:.7rem">baseline</span>'}
-          ${!s.seeded ? `<button class="btn-icon delete-scan" data-id="${s.id}" title="Delete">✕</button>` : ''}
+          ${!s.seeded ? `<button class="btn-icon edit-scan" data-id="${s.id}" title="Edit">${icon('pencil', 14)}</button>` : '<span class="muted" style="font-size:.7rem">baseline</span>'}
+          ${!s.seeded ? `<button class="btn-icon delete-scan" data-id="${s.id}" title="Delete">${icon('x', 14)}</button>` : ''}
         </div>
       </div>
-      ${s.notes ? `<p class="muted" style="font-size:.78rem;margin-top:.25rem">📝 ${s.notes}</p>` : ''}
+      ${s.notes ? `<p class="muted icon-inline" style="font-size:.78rem;margin-top:.25rem">${icon('square-pen', 12)} ${s.notes}</p>` : ''}
     </div>
   `;
 }
@@ -584,11 +585,11 @@ function setupBodyScanEvents(container) {
             </div>
           </div>`;
       } else if (type === 'success') {
-        statusEl.innerHTML = `<div class="scan-upload-result success">✓ ${msg}</div>`;
+        statusEl.innerHTML = `<div class="scan-upload-result success icon-inline">${icon('check', 14)} ${msg}</div>`;
       } else if (type === 'warn') {
-        statusEl.innerHTML = `<div class="scan-upload-result warn">⚠ ${msg}</div>`;
+        statusEl.innerHTML = `<div class="scan-upload-result warn icon-inline">${icon('triangle-alert', 14)} ${msg}</div>`;
       } else if (type === 'error') {
-        statusEl.innerHTML = `<div class="scan-upload-result error">✕ ${msg}</div>`;
+        statusEl.innerHTML = `<div class="scan-upload-result error icon-inline">${icon('x', 14)} ${msg}</div>`;
       }
     };
 
@@ -648,7 +649,7 @@ function setupBodyScanEvents(container) {
       const hasKey = !!localStorage.getItem('anthropic_api_key');
       if (uploadBtn) {
         uploadBtn.disabled = false;
-        uploadBtn.textContent = `📄 Upload from file ${hasKey ? '(Claude AI reads it)' : '(OCR)'}`;
+        uploadBtn.innerHTML = `${icon('file-text', 16)}<span>Upload from file ${hasKey ? '(Claude AI reads it)' : '(OCR)'}</span>`;
       }
     }
   });
@@ -858,7 +859,7 @@ async function generateAndStoreInsights(scan, allScans, programme, container) {
 
 function renderInsightsCardHtml(insights, scanDate) {
   if (!insights) return '';
-  const typeIcon = { strength: '✓', weakness: '↓', warning: '⚠', trend: '→' };
+  const typeIcon = { strength: icon('check', 12), weakness: icon('trending-down', 12), warning: icon('triangle-alert', 12), trend: icon('move-right', 12) };
   const typeCls  = { strength: 'success', weakness: 'danger', warning: 'warning', trend: 'info' };
 
   return `
@@ -866,7 +867,7 @@ function renderInsightsCardHtml(insights, scanDate) {
       <div class="card-label">Monthly Programme Insights</div>
       <div style="display:flex;align-items:center;gap:.5rem">
         <span class="muted" style="font-size:.72rem">Based on scan ${scanDate}</span>
-        <button class="btn-secondary btn-sm" id="regenerate-insights">↺ Regenerate</button>
+        <button class="btn-secondary btn-sm icon-inline" id="regenerate-insights">${icon('repeat', 13)} Regenerate</button>
       </div>
     </div>
 

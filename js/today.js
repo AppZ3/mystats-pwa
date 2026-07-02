@@ -4,6 +4,7 @@ import { renderJournalPrompt } from './journal.js';
 import { getChecklistItems, getSupplements } from './config.js';
 import { listProgrammes, getWeekSessions, WEEK_LABELS, WEEK_HINTS } from './programmes.js';
 import { scanForPRs, formatPRToast } from './pr-detect.js';
+import { icon } from './icons.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
 let blockLog = {};       // {exerciseName: {sets:[{weight,reps,note}], hold, level}, _warmup:bool, '_core:...':bool, _run:{...}, '_circuit:N':bool}
@@ -168,7 +169,7 @@ function renderWarmupBlock(block) {
         ${block.items.map(item => `<li>${esc(item)}</li>`).join('')}
       </ul>
       <button class="warmup-done-btn ${done ? 'is-done' : ''}" data-done="${done ? 1 : 0}">
-        ${done ? '✓ Done' : 'Mark Done'}
+        ${done ? `${icon('check', 14)} Done` : 'Mark Done'}
       </button>
     </div>`;
 }
@@ -260,7 +261,7 @@ function renderStrengthBlock(block) {
                   <input type="text" class="str-prev-ref" placeholder="prev" value="${esc(prevStr)}" tabindex="-1" autocomplete="off">
                   <button class="str-tick-btn ${s.done ? 'is-done' : ''}"
                     data-ex="${esc(ex.name)}" data-idx="${i}" data-done="${s.done ? '1' : '0'}">
-                    ${s.done ? '✓' : ''}
+                    ${s.done ? icon('check', 14) : ''}
                   </button>
                 </div>`;
               }).join('')}
@@ -323,7 +324,7 @@ function renderCircuitBlock(block) {
         ${Array.from({length: rounds}, (_, i) => {
           const done = !!blockLog[`_circuit:${i + 1}`];
           return `<button class="circuit-round-btn ${done ? 'is-done' : ''}" data-round="${i + 1}" data-done="${done ? 1 : 0}">
-            ${done ? '✓' : ''} Round ${i + 1}
+            ${done ? icon('check', 13) : ''} Round ${i + 1}
           </button>`;
         }).join('')}
       </div>
@@ -404,10 +405,11 @@ function renderSessionPanel(session, isRest, progress, mobility, week, weekLabel
           <div class="session-progress">
             <div class="prog-bar-track"><div class="prog-bar-fill" style="width:${progress.pct}%"></div></div>
             <span class="prog-pct">${progress.pct}%</span>
-          </div>` : todayWorkoutId ? '<span class="badge info">✓ Saved</span>' : ''}
+          </div>` : todayWorkoutId ? `<span class="badge info icon-inline">${icon('check', 12)} Saved</span>` : ''}
       </div>
       ${isRest ? `
-        <p class="muted" style="margin-top:.75rem">Rest day. Recover well — gains happen during rest.</p>
+        <div class="rest-day-icon">${icon('moon', 32)}</div>
+        <p class="muted rest-day-msg">Rest day. Recover well — gains happen during rest.</p>
         ${mobility ? renderMobilityBlock({ ...mobility, type: 'mobility' }) : ''}
       ` : `
         <div id="session-blocks">
@@ -415,7 +417,7 @@ function renderSessionPanel(session, isRest, progress, mobility, week, weekLabel
         </div>
         ${mobility && !currentBlocks.some(b => b.type === 'mobility') ? renderMobilityBlock({ ...mobility, type: 'mobility' }) : ''}
         <button id="save-today-log" class="btn-primary" style="margin-top:1rem">
-          ${todayWorkoutId ? '✓ Update Session' : 'Save Session'}
+          ${todayWorkoutId ? `${icon('check', 15)} Update Session` : 'Save Session'}
         </button>
       `}
     </div>
@@ -656,7 +658,7 @@ function setupTodayEvents(container) {
         tile.classList.add('is-done');
         tickBtn.classList.add('is-done');
         tickBtn.dataset.done = '1';
-        tickBtn.textContent  = '✓';
+        tickBtn.innerHTML    = icon('check', 14);
       } else {
         // Un-tick — zero blockLog and clear DOM inputs
         if (exName && blockLog[exName]?.sets?.[idx]) {
@@ -678,7 +680,7 @@ function setupTodayEvents(container) {
     if (warmupBtn) {
       const isDone = warmupBtn.dataset.done !== '1';
       warmupBtn.dataset.done = isDone ? '1' : '0';
-      warmupBtn.textContent = isDone ? '✓ Done' : 'Mark Done';
+      warmupBtn.innerHTML = isDone ? `${icon('check', 14)} Done` : 'Mark Done';
       warmupBtn.classList.toggle('is-done', isDone);
       blockLog._warmup = isDone;
       refreshProgress(container);
@@ -690,7 +692,7 @@ function setupTodayEvents(container) {
     if (circuitBtn) {
       const isDone = circuitBtn.dataset.done !== '1';
       circuitBtn.dataset.done = isDone ? '1' : '0';
-      circuitBtn.textContent = (isDone ? '✓ ' : '') + `Round ${circuitBtn.dataset.round}`;
+      circuitBtn.innerHTML = (isDone ? icon('check', 13) + ' ' : '') + `Round ${circuitBtn.dataset.round}`;
       circuitBtn.classList.toggle('is-done', isDone);
       blockLog[`_circuit:${circuitBtn.dataset.round}`] = isDone;
       refreshProgress(container);
@@ -764,10 +766,10 @@ function setupTodayEvents(container) {
     if (prToast) showToast(prToast);
     await loadTodayLog();
     const btn = container.querySelector('#save-today-log');
-    if (btn) btn.textContent = '✓ Update Session';
+    if (btn) btn.innerHTML = `${icon('check', 15)} Update Session`;
     const headerRow = container.querySelector('.card-header-row');
     if (headerRow && !headerRow.querySelector('.badge.info')) {
-      headerRow.insertAdjacentHTML('beforeend', '<span class="badge info" style="align-self:flex-start">✓ Saved</span>');
+      headerRow.insertAdjacentHTML('beforeend', `<span class="badge info icon-inline" style="align-self:flex-start">${icon('check', 12)} Saved</span>`);
     }
     renderJournalPrompt(container, todayWorkoutId, todayStr());
   });

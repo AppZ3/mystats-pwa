@@ -59,9 +59,14 @@ other way than by hand loses real programming detail.
 }
 ```
 `weekLabel`/`weekHint` are optional per-week strings. When absent, the UI
-falls back to today's existing global `WEEK_LABELS`/`WEEK_HINTS` arrays
-(index by week number) so any programme missing them still shows something
-sensible.
+falls back to global `WEEK_LABELS`/`WEEK_HINTS` arrays (index by week
+number) so any programme missing them still shows something sensible.
+That fallback text is neutral ("Week 1", "Week 2", "Week 3", "Week 4", no
+hint) — **not** A/B's specific "Foundation/Intensification/Volume/Deload"
+language. Once migrated, A/B always carry their own explicit `weekLabel`/
+`weekHint` (see Migration below), so the global fallback only ever fires
+for a brand-new, not-yet-filled-in custom programme — and "Foundation"
+implies a periodization philosophy that a blank programme doesn't have.
 
 `dayObj` keeps its existing shape (`{ label, focus, blocks }`) —
 unchanged. Blocks keep their existing per-type shape. One addition:
@@ -102,14 +107,33 @@ move from `js/today.js` into `js/programmes.js` (their only remaining
 caller is this migration path) and are deleted from `today.js` along with
 their three call sites — blocks render their stored values directly.
 
+**Concurrent calls are safe.** `getSessions` can be called from more than
+one place close together (e.g. Today and Settings both loading near
+startup). Migration is a pure function of the stored old-shape data, so
+if two calls both read old-shape data before either has written the
+migrated result, both compute the identical 4-week object and both write
+it — redundant, but harmless. There's no path where a caller observes a
+torn or partially-migrated result.
+
 **Fresh installs** (`ensureSeeded()`, no existing data at all) write A/B
 directly in the new 4-week shape — the migration path never runs for them.
+
+**Key entirely missing** (a programme listed in `programmes_list` whose
+`programme_<id>_sessions` key doesn't exist at all — the exact shape of
+bug seen on the user's device with the pre-4-week rollout): `getSessions`
+returns `emptyFourWeeks()` (four weeks of all-rest-day placeholders), not
+the old single-week `emptyWeek()`. This is a plain empty-state fallback,
+not a migration — there is nothing to migrate — but it must be spelled
+out explicitly since a missing key is exactly the failure mode that
+caused a real bug before this spec.
 
 ## API changes (`js/programmes.js`)
 
 - `getSessions(id)` → now returns the full 4-week object `{1:{...},
   2:{...}, 3:{...}, 4:{...}}` (was: one week's day object). Handles
-  migration internally as described above.
+  migration internally as described above. If the `programme_<id>_sessions`
+  key doesn't exist at all, returns `emptyFourWeeks()` (see "Key entirely
+  missing" above) — never the old `emptyWeek()`.
 - `getWeekSessions(id, week)` (new) → `{ 0: dayObj, ..., 6: dayObj }` for
   one week. Thin wrapper: `(await getSessions(id))[week] ?? emptyWeek()`.
 - `saveWeekSessions(id, week, daySessions)` (new) → reads the full 4-week
@@ -230,3 +254,11 @@ manual, per existing project convention:
      render shows the correct distinct content.
   7. Fresh install (no existing data): confirm A/B seed directly in the
      new shape with no migration step involved.
+  8. **Regression check for the "prev" reference feature** (the user's
+     original secondary complaint, unrelated in cause but worth confirming
+     unaffected): seed synthetic `today-log` workout history with explicit
+     `programme`/`week`/`day` fields, migrate that programme from old to
+     new shape, then confirm the Today tab's "prev" column still shows the
+     correct prior session for the matching programme+week+day — not just
+     "no changes were made to getPrevExercise" as a code claim, but an
+     actual before/after render check.

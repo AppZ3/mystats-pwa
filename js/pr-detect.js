@@ -50,7 +50,16 @@ async function scanAgainstState(exercises, date, recordFor, canonicalType) {
     if (!candidate) continue;
 
     const existingType = canonicalType.get(ex.name);
-    if (existingType !== undefined && existingType !== candidate.type) {
+    if (existingType === undefined) {
+      // First time this exercise name has been seen in this scan/backfill run — seed its
+      // canonical type now. Without this, canonicalType is only ever set inside the
+      // conflict-resolution branch below, which requires an existing type to compare
+      // against — a chicken-and-egg gap that meant the conflict check could never fire
+      // for any exercise, ever (every exercise's first-seen type just fell through
+      // unseeded, so a later type for the same name was treated as brand new instead of
+      // a conflict, leaving both an old reps-type and new weight-type record in the DB).
+      canonicalType.set(ex.name, candidate.type);
+    } else if (existingType !== candidate.type) {
       if (TYPE_PRIORITY[candidate.type] < TYPE_PRIORITY[existingType]) {
         // Candidate outranks the name's current type (e.g. a weight record now exists
         // for a name that previously only had bodyweight-reps records) — the candidate

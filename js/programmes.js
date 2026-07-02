@@ -49,7 +49,7 @@ function legacyWeekMods(week) {
 }
 
 function applyHoldBonus(target, bonus) {
-  if (!bonus) return target;
+  if (!bonus || !target) return target;
   const m = target.match(/^(\d+)(s.*)$/);
   return m ? `${parseInt(m[1]) + bonus}${m[2]}` : target;
 }
@@ -69,7 +69,7 @@ function materializeLegacyWeek(week1Days, week) {
             note: mods.blockNote || block.note,
             exercises: (block.exercises || []).map(ex => ({
               ...ex,
-              sets: ex.sets + mods.extraSets,
+              sets: typeof ex.sets === 'number' ? ex.sets + mods.extraSets : ex.sets,
               target: applyHoldBonus(ex.target, mods.holdBonus),
             })),
           };
@@ -84,7 +84,7 @@ function materializeLegacyWeek(week1Days, week) {
             })),
           };
         }
-        return { ...block }; // warmup/core/circuit/cardio/mobility — weekMods() never touched these
+        return JSON.parse(JSON.stringify(block)); // warmup/core/circuit/cardio/mobility — weekMods() never touched these, but still needs a real clone so each week's blocks are independent, not shared references
       }),
     };
   }
@@ -93,7 +93,7 @@ function materializeLegacyWeek(week1Days, week) {
 
 function migrateToFourWeeks(week1Days) {
   return {
-    1: { ...week1Days, weekLabel: LEGACY_WEEK_LABELS[1] || '', weekHint: LEGACY_WEEK_HINTS[1] || '' },
+    1: { ...JSON.parse(JSON.stringify(week1Days)), weekLabel: LEGACY_WEEK_LABELS[1] || '', weekHint: LEGACY_WEEK_HINTS[1] || '' },
     2: materializeLegacyWeek(week1Days, 2),
     3: materializeLegacyWeek(week1Days, 3),
     4: materializeLegacyWeek(week1Days, 4),

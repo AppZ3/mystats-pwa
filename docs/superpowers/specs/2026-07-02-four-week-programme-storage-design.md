@@ -118,6 +118,15 @@ torn or partially-migrated result.
 **Fresh installs** (`ensureSeeded()`, no existing data at all) write A/B
 directly in the new 4-week shape — the migration path never runs for them.
 
+**Backup re-import doesn't need special handling.** `importBackup()` in
+`js/settings.js` upserts every key present in the backup's `settings`
+array — an old backup taken before this ships could reintroduce an
+old-shape `programme_a_sessions`/`programme_b_sessions` value on import.
+This needs no new code: the next `getSessions` read for that programme
+detects the old shape (same check as any other old-shape data) and
+re-migrates it. Worst case is one redundant migration cycle, not a
+lasting regression — consistent with "Concurrent calls are safe" above.
+
 **Key entirely missing** (a programme listed in `programmes_list` whose
 `programme_<id>_sessions` key doesn't exist at all — the exact shape of
 bug seen on the user's device with the pre-4-week rollout): `getSessions`
@@ -176,10 +185,17 @@ caused a real bug before this spec.
   week/day pills already use — same interaction pattern, one more
   dimension. Switching week reloads that week's day tabs via
   `getWeekSessions(progId, editorWeek)`.
-- Every `getSessions(progId)` call in this file becomes
-  `getWeekSessions(progId, editorWeek)`; every `saveSessions(progId,
-  sessions)` call becomes `saveWeekSessions(progId, editorWeek,
-  sessions)`.
+- This file has three existing `getSessions`/`saveSessions` call sites,
+  and they do **not** all convert the same way:
+  - The manual block editor's `#save-day-btn` handler (saves one day's
+    edited blocks) is week-scoped: becomes `getWeekSessions(progId,
+    editorWeek)` / `saveWeekSessions(progId, editorWeek, sessions)`.
+  - `importJsonProgramme` (handles both the simple and advanced JSON
+    upload formats) and the PDF/Word auto-parse handler both write an
+    entire programme at once — they build a full 4-week object per the
+    "Upload format changes" rules below, then call `saveSessions(progId,
+    fullFourWeekObject)`, **not** `saveWeekSessions`. Neither of these
+    call sites should be touched by the "manual editor" conversion above.
 - A small per-week "label/hint" text field pair is added to the week pill
   row's area, editing that week's `weekLabel`/`weekHint` directly in the
   stored week object.
@@ -200,20 +216,25 @@ to:
   }
 }
 ```
-Import logic: if `weeks` is present, use it directly (validated/coerced
-per-week with the same block-type whitelist + `items`/`exercises`
-coercion the current single-week import already does). If `weeks` is
-absent but `days` is present (old-format upload), treat `days` as Week 1
-and copy it verbatim into weeks 2-4 (a flat copy, not the legacy
-`weekMods()` materialization — that replay is specific to the pre-existing
-A/B migration, not a general rule for new uploads). This keeps every
-existing shared programme file and the current advanced-format documentation
-valid without changes.
+Import logic (`importJsonProgramme` in `js/programme-editor.js`): if
+`weeks` is present, use it directly (validated/coerced per-week with the
+same block-type whitelist + `items`/`exercises` coercion the current
+single-week import already does). If `weeks` is absent but `days` is
+present (old-format upload), treat `days` as Week 1 and copy it verbatim
+into weeks 2-4 (a flat copy, not the legacy `weekMods()` materialization
+— that replay is specific to the pre-existing A/B migration, not a
+general rule for new uploads). This keeps every existing shared programme
+file valid without changes. **Validation gate change:** the function's
+current guard (`if (!data.days || typeof data.days !== 'object') throw
+...`) unconditionally requires `days` and would reject a `weeks`-only
+file outright — it must change to require *either* `weeks` or `days` (at
+least one present), not `days` specifically.
 
-The simple (non-advanced) DOCX/PDF/text auto-parse path is unaffected in
-scope — it still only ever produces one week's worth of exercises, which
-gets copied across all 4 weeks the same way an old-format `days`-only
-JSON upload does.
+The simple (non-advanced) DOCX/PDF/text auto-parse path (the PDF/Word
+handler that calls `wrapParsedDaysAsBlocks`) is unaffected in scope — it
+still only ever produces one week's worth of exercises. That single
+parsed week gets copied across all 4 weeks the same way an old-format
+`days`-only JSON upload does, before being written with `saveSessions`.
 
 ## Robustness fix (folded in, same code being touched)
 

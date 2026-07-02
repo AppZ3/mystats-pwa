@@ -1,5 +1,5 @@
 import { esc } from './db.js';
-import { listProgrammes, createProgramme, renameProgramme, deleteProgramme, getSessions, saveSessions, BLOCK_TYPES, MAX_PROGRAMMES } from './programmes.js';
+import { listProgrammes, createProgramme, renameProgramme, deleteProgramme, getSessions, saveSessions, getWeekSessions, saveWeekSessions, BLOCK_TYPES, MAX_PROGRAMMES } from './programmes.js';
 
 function showToast(msg) {
   let t = document.querySelector('.toast');
@@ -15,6 +15,7 @@ function showToast(msg) {
 }
 
 let expandedId = null; // which programme's block builder is open, if any
+let editorWeek = 1; // 1-4 — which stored week the block builder is currently viewing/editing
 let editorDay = 1; // 1=Mon .. 6=Sat, 0=Sun — matches the rest of the app's day numbering
 let editingBlocks = []; // working copy of the open day's blocks array
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
@@ -119,11 +120,22 @@ function defaultBlockFor(type) {
 export async function renderBlockEditor(container, progId) {
   const mount = container.querySelector('#block-editor-mount');
   if (!mount) return;
-  const sessions = await getSessions(progId);
-  const day = sessions[editorDay] ?? { label: 'Rest', focus: 'Recovery', blocks: [] };
+  const weekSessions = await getWeekSessions(progId, editorWeek);
+  const day = weekSessions[editorDay] ?? { label: 'Rest', focus: 'Recovery', blocks: [] };
   editingBlocks = day.blocks.map(b => JSON.parse(JSON.stringify(b)));
 
   mount.innerHTML = `
+    <div class="block-day-tabs">
+      ${[1,2,3,4].map(w => `
+        <button class="ctrl-pill week-pill ${editorWeek === w ? 'active' : ''}" data-edweek="${w}">W${w}</button>
+      `).join('')}
+    </div>
+    <div class="form-grid" style="margin-bottom:.5rem">
+      <div class="form-group"><label>Week Label</label>
+        <input type="text" id="ed-week-label" class="input-field" value="${(weekSessions.weekLabel || '').replace(/"/g, '&quot;')}" placeholder="e.g. Skill Acquisition + Strength Foundation"></div>
+      <div class="form-group"><label>Week Hint</label>
+        <input type="text" id="ed-week-hint" class="input-field" value="${(weekSessions.weekHint || '').replace(/"/g, '&quot;')}" placeholder="e.g. Base sets and reps as written"></div>
+    </div>
     <div class="block-day-tabs">
       ${[1,2,3,4,5,6,0].map(d => `
         <button class="ctrl-pill day-pill ${editorDay === d ? 'active' : ''}" data-edday="${d}">${DAY_LABELS[d]}</button>
@@ -144,7 +156,7 @@ export async function renderBlockEditor(container, progId) {
       </select>
       <button class="btn-secondary" id="add-block-btn">+ Add Block</button>
     </div>
-    <p class="muted" style="font-size:.75rem;margin:.5rem 0">Switching days without saving discards unsaved edits on this day.</p>
+    <p class="muted" style="font-size:.75rem;margin:.5rem 0">Switching weeks or days without saving discards unsaved edits.</p>
     <button class="btn-primary" id="save-day-btn" style="width:100%">Save Day</button>
     <hr style="border-color:var(--border);margin:1rem 0">
     ${renderUploadSection(progId)}
@@ -212,6 +224,13 @@ function cardioBlockHTML(b, bi) {
 // add/remove/move — re-running this whole function from refreshBlockList would
 // duplicate-bind the persistent elements and make them fire multiple times per click.
 function setupBlockEditorEvents(container, progId) {
+  container.querySelectorAll('[data-edweek]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      editorWeek = +btn.dataset.edweek;
+      await renderBlockEditor(container, progId);
+    });
+  });
+
   container.querySelectorAll('[data-edday]').forEach(btn => {
     btn.addEventListener('click', async () => {
       editorDay = +btn.dataset.edday;
@@ -227,11 +246,13 @@ function setupBlockEditorEvents(container, progId) {
 
   container.querySelector('#save-day-btn')?.addEventListener('click', async () => {
     readBlocksFromDom(container);
-    const sessions = await getSessions(progId);
+    const weekSessions = await getWeekSessions(progId, editorWeek);
     const label = container.querySelector('#ed-day-label')?.value || '';
     const focus = container.querySelector('#ed-day-focus')?.value || '';
-    sessions[editorDay] = { label, focus, blocks: editingBlocks };
-    await saveSessions(progId, sessions);
+    weekSessions[editorDay] = { label, focus, blocks: editingBlocks };
+    weekSessions.weekLabel = container.querySelector('#ed-week-label')?.value || '';
+    weekSessions.weekHint = container.querySelector('#ed-week-hint')?.value || '';
+    await saveWeekSessions(progId, editorWeek, weekSessions);
     showToast('Day saved');
   });
 
@@ -399,9 +420,11 @@ function setupExerciseBlockEvents(container, progId) {
 function renderUploadSection(progId) {
   return `
     <p class="muted" style="font-size:.8rem;margin-bottom:.5rem">
-      Upload a <strong>PDF</strong>, <strong>Word</strong>, or <strong>JSON</strong> file to fill this programme's week.
-      PDF/Word and simple JSON produce one Strength block per day (refine with the block builder above).
-      JSON with a full <code>blocks</code> array per day is used exactly as written — full one-shot detail.
+      Upload a <strong>PDF</strong>, <strong>Word</strong>, or <strong>JSON</strong> file to fill this programme.
+      PDF/Word and simple JSON (a <code>days</code> field) produce one Strength block per day, copied across
+      all 4 weeks — refine with the block builder above. JSON with a <code>weeks</code> field (each week its
+      own <code>days</code>, optionally full <code>blocks</code> arrays) gives every week genuinely distinct
+      content in one upload — see the template.
     </p>
     <div class="add-item-row" style="margin-bottom:.5rem">
       <button class="btn-primary" id="upload-prog-btn" style="flex:1">📋 Upload Programme</button>
@@ -415,34 +438,61 @@ function renderUploadSection(progId) {
 const PROG_DAY_MAP = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
 
 // Simple flat shape: { name, description, days: { Monday: { label, exercises: [{name,sets,reps}|string] } } }
-// Advanced shape: same, but a day may have `blocks: [...]` instead of `exercises` — used verbatim.
+// — applied to Week 1, then flat-copied to weeks 2-4 (no legacy scaling — that replay is
+// specific to the pre-existing A/B migration, not a rule for new uploads).
+// Advanced shape: { name, description, weeks: { "1": { weekLabel?, weekHint?, days: {...} }, "2": {...}, ... } }
+// — each week's `days` may use `blocks: [...]` instead of `exercises` for full control.
+// Both shapes merge into the programme's existing 4-week data — only days actually
+// present in the file are touched; everything else is left as-is.
+const VALID_BLOCK_TYPES = new Set(BLOCK_TYPES.map(t => t.type));
+
+function parseUploadedDay(dayData) {
+  if (Array.isArray(dayData.blocks)) {
+    const blocks = dayData.blocks
+      .filter(b => b && VALID_BLOCK_TYPES.has(b.type))
+      .map(b => {
+        if (b.type === 'warmup' || b.type === 'core') return { ...b, items: Array.isArray(b.items) ? b.items : [] };
+        if (b.type === 'skill' || b.type === 'strength' || b.type === 'circuit') return { ...b, exercises: Array.isArray(b.exercises) ? b.exercises : [] };
+        return b; // cardio/mobility have no array field to coerce
+      });
+    return { label: dayData.label || '', focus: dayData.focus || '', blocks };
+  }
+  const exercises = (dayData.exercises || []).map(ex =>
+    typeof ex === 'string' ? { name: ex } : { name: ex.name, sets: ex.sets, reps: ex.reps ? String(ex.reps) : undefined }
+  );
+  return { label: dayData.label || '', focus: '', blocks: exercises.length ? [{ type: 'strength', exercises }] : [] };
+}
+
 async function importJsonProgramme(file, progId) {
   const text = await file.text();
   let data;
   try { data = JSON.parse(text); } catch { throw new Error('Invalid JSON file'); }
-  if (!data.days || typeof data.days !== 'object') throw new Error('Missing "days" field — see template for format');
+  if (!data.weeks && !data.days) throw new Error('Missing "weeks" or "days" field — see template for format');
 
-  const sessions = await getSessions(progId);
-  for (const [dayName, dayData] of Object.entries(data.days)) {
-    const dayNum = PROG_DAY_MAP[dayName.toLowerCase()];
-    if (dayNum === undefined) throw new Error(`Unknown day "${dayName}" — use Monday, Tuesday, etc.`);
-    if (Array.isArray(dayData.blocks)) {
-      const validTypes = new Set(BLOCK_TYPES.map(t => t.type));
-      const blocks = dayData.blocks
-        .filter(b => b && validTypes.has(b.type))
-        .map(b => {
-          if (b.type === 'warmup' || b.type === 'core') return { ...b, items: Array.isArray(b.items) ? b.items : [] };
-          if (b.type === 'skill' || b.type === 'strength' || b.type === 'circuit') return { ...b, exercises: Array.isArray(b.exercises) ? b.exercises : [] };
-          return b; // cardio/mobility have no array field to coerce
-        });
-      sessions[dayNum] = { label: dayData.label || '', focus: dayData.focus || '', blocks };
-    } else {
-      const exercises = (dayData.exercises || []).map(ex =>
-        typeof ex === 'string' ? { name: ex } : { name: ex.name, sets: ex.sets, reps: ex.reps ? String(ex.reps) : undefined }
-      );
-      sessions[dayNum] = { label: dayData.label || '', focus: '', blocks: exercises.length ? [{ type: 'strength', exercises }] : [] };
+  const sessions = await getSessions(progId); // full 4-week object — merge into it
+
+  if (data.weeks) {
+    for (const [weekKey, weekData] of Object.entries(data.weeks)) {
+      const weekNum = parseInt(weekKey, 10);
+      if (![1, 2, 3, 4].includes(weekNum)) throw new Error(`Invalid week "${weekKey}" — use 1, 2, 3, or 4`);
+      if (weekData.weekLabel) sessions[weekNum].weekLabel = weekData.weekLabel;
+      if (weekData.weekHint) sessions[weekNum].weekHint = weekData.weekHint;
+      for (const [dayName, dayData] of Object.entries(weekData.days || {})) {
+        const dayNum = PROG_DAY_MAP[dayName.toLowerCase()];
+        if (dayNum === undefined) throw new Error(`Unknown day "${dayName}" — use Monday, Tuesday, etc.`);
+        sessions[weekNum][dayNum] = parseUploadedDay(dayData);
+      }
+    }
+  } else {
+    for (const [dayName, dayData] of Object.entries(data.days)) {
+      const dayNum = PROG_DAY_MAP[dayName.toLowerCase()];
+      if (dayNum === undefined) throw new Error(`Unknown day "${dayName}" — use Monday, Tuesday, etc.`);
+      const parsed = parseUploadedDay(dayData);
+      sessions[1][dayNum] = parsed;
+      for (const w of [2, 3, 4]) sessions[w][dayNum] = JSON.parse(JSON.stringify(parsed));
     }
   }
+
   await saveSessions(progId, sessions);
 }
 
@@ -601,9 +651,13 @@ function setupUploadEvents(container, progId, onDone) {
           return;
         }
         const sessions = await getSessions(progId);
-        Object.assign(sessions, wrapParsedDaysAsBlocks(parsedDays));
+        const parsedWeek1 = wrapParsedDaysAsBlocks(parsedDays);
+        Object.assign(sessions[1], parsedWeek1);
+        for (const dayNum of Object.keys(parsedWeek1)) {
+          for (const w of [2, 3, 4]) sessions[w][dayNum] = JSON.parse(JSON.stringify(sessions[1][dayNum]));
+        }
         await saveSessions(progId, sessions);
-        status.textContent = `✓ Parsed ${totalEx} exercises into Strength blocks — refine with the block builder above.`;
+        status.textContent = `✓ Parsed ${totalEx} exercises into Strength blocks (Week 1, copied to weeks 2-4) — refine with the block builder above.`;
         status.style.color = 'var(--success)';
         setTimeout(onDone, 1000);
       } else {
@@ -624,19 +678,30 @@ function setupUploadEvents(container, progId, onDone) {
     const template = {
       name: 'My Programme',
       description: 'Optional — e.g. 4-day upper/lower split',
-      days: {
-        Monday: { label: 'Push', exercises: [{ name: 'Bench Press', sets: 4, reps: '6-8' }, { name: 'Overhead Press', sets: 3, reps: '8-10' }] },
-        Tuesday: { label: 'Pull', exercises: [{ name: 'Pull-up', sets: 4, reps: '6-8' }, { name: 'Barbell Row', sets: 3, reps: '8-10' }] },
-        Wednesday: { label: 'Rest', exercises: [] },
-        Thursday: { label: 'Legs', exercises: [{ name: 'Back Squat', sets: 4, reps: '6-8' }] },
-        Friday: { label: 'Upper', exercises: [{ name: 'Incline Bench Press', sets: 3, reps: '8-10' }] },
-        Saturday: { label: 'Rest', exercises: [] },
-        Sunday: {
-          label: 'Advanced example — full block control', focus: 'Optional',
-          blocks: [
-            { type: 'warmup', items: ['Light walk — 5 min', 'Dynamic stretches — 5 min'] },
-            { type: 'skill', name: 'Example Skill', exercises: [{ name: 'Hold progression', sets: 5, target: '10s' }] },
-          ],
+      weeks: {
+        1: {
+          weekLabel: 'Foundation', weekHint: 'Base sets and reps as written',
+          days: {
+            Monday: { label: 'Push', exercises: [{ name: 'Bench Press', sets: 4, reps: '6-8' }, { name: 'Overhead Press', sets: 3, reps: '8-10' }] },
+            Tuesday: { label: 'Pull', exercises: [{ name: 'Pull-up', sets: 4, reps: '6-8' }, { name: 'Barbell Row', sets: 3, reps: '8-10' }] },
+            Wednesday: { label: 'Rest', exercises: [] },
+            Thursday: { label: 'Legs', exercises: [{ name: 'Back Squat', sets: 4, reps: '6-8' }] },
+            Friday: { label: 'Upper', exercises: [{ name: 'Incline Bench Press', sets: 3, reps: '8-10' }] },
+            Saturday: { label: 'Rest', exercises: [] },
+            Sunday: {
+              label: 'Advanced example — full block control', focus: 'Optional',
+              blocks: [
+                { type: 'warmup', items: ['Light walk — 5 min', 'Dynamic stretches — 5 min'] },
+                { type: 'skill', name: 'Example Skill', exercises: [{ name: 'Hold progression', sets: 5, target: '10s' }] },
+              ],
+            },
+          },
+        },
+        2: {
+          weekLabel: 'Intensification', weekHint: 'Heavier loads, lower reps',
+          days: {
+            Monday: { label: 'Push — Heavy', exercises: [{ name: 'Bench Press', sets: 5, reps: '4-6' }] },
+          },
         },
       },
     };

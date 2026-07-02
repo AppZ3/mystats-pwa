@@ -2,7 +2,7 @@ import { PRE_TRAINING, MOBILITY_SESSIONS } from './profile.js';
 import { dbGet, dbPut, dbGetAll, dbGetByIndex, dbAdd, esc, todayStr } from './db.js';
 import { renderJournalPrompt } from './journal.js';
 import { getChecklistItems, getSupplements } from './config.js';
-import { listProgrammes, getProgrammeSession } from './programmes.js';
+import { listProgrammes, getWeekSessions, WEEK_LABELS, WEEK_HINTS } from './programmes.js';
 import { scanForPRs, formatPRToast } from './pr-detect.js';
 
 // ── Module state ───────────────────────────────────────────────────────────
@@ -22,24 +22,6 @@ let pendingDay  = null;
 let todaySubTab = 'session'; // 'session' | 'checklist' | 'supps'
 
 const DAY_LABELS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
-const WEEK_LABELS = ['','Foundation','Intensification','Volume','Deload'];
-const WEEK_HINTS  = ['','Base sets and reps as written','Heavier loads, lower reps, advance skill level or +2s to holds','Add 1 extra set to all skill work, moderate weight','Reduce all loads 40-50% — quality skill focus only'];
-
-// Returns per-week adjustments applied to displayed exercise targets
-function weekMods() {
-  switch (activeWeek) {
-    case 2: return { extraSets: 0, holdBonus: 2, blockNote: 'Heavy — lower reps, advance skill' };
-    case 3: return { extraSets: 1, holdBonus: 0, blockNote: '+1 set — moderate weight' };
-    case 4: return { extraSets: 0, holdBonus: 0, blockNote: 'Deload — 40-50% load' };
-    default: return { extraSets: 0, holdBonus: 0, blockNote: null };
-  }
-}
-
-function applyHoldBonus(target, bonus) {
-  if (!bonus) return target;
-  const m = target.match(/^(\d+)(s.*)$/);
-  return m ? `${parseInt(m[1]) + bonus}${m[2]}` : target;
-}
 
 function getPrevExercise(name) {
   const sorted = cachedAllWorkouts
@@ -193,24 +175,20 @@ function renderWarmupBlock(block) {
 
 function renderSkillBlock(block) {
   const exercises = block.exercises || [];
-  const skillMods = weekMods();
   return `
     <div class="session-block skill-block">
       <div class="block-header-row">
         <span class="block-type-tag type-skill">Skill — ${esc(block.name)}</span>
-        ${skillMods.blockNote ? `<span class="block-note">${esc(skillMods.blockNote)}</span>` : block.note ? `<span class="block-note">${esc(block.note)}</span>` : ''}
+        ${block.note ? `<span class="block-note">${esc(block.note)}</span>` : ''}
       </div>
       ${exercises.map(ex => {
         const log = blockLog[ex.name] || {};
         const setsCount = log.sets?.length || 0;
-        const mods = skillMods;
-        const adjSets = ex.sets + mods.extraSets;
-        const adjTarget = applyHoldBonus(ex.target, mods.holdBonus);
         return `
           <div class="skill-exercise" data-ex="${esc(ex.name)}">
             <div class="skill-ex-header">
               <span class="skill-ex-name">${esc(ex.name)}</span>
-              <span class="skill-ex-target">${esc(String(adjSets))} × ${esc(adjTarget)}${ex.note ? ` <span class="type-note">· ${esc(ex.note)}</span>` : ''}</span>
+              <span class="skill-ex-target">${esc(String(ex.sets))} × ${esc(ex.target)}${ex.note ? ` <span class="type-note">· ${esc(ex.note)}</span>` : ''}</span>
             </div>
             <div class="skill-ex-inputs">
               ${(() => {
@@ -221,13 +199,13 @@ function renderSkillBlock(block) {
                 <div class="set-counter">
                   <button class="sc-btn sc-minus" data-ex="${esc(ex.name)}">−</button>
                   <span class="sc-val" data-ex="${esc(ex.name)}">${setsCount}</span>
-                  <span class="sc-of">/ ${adjSets}</span>
-                  <button class="sc-btn sc-plus" data-ex="${esc(ex.name)}" data-target="${adjSets}">+</button>
+                  <span class="sc-of">/ ${ex.sets}</span>
+                  <button class="sc-btn sc-plus" data-ex="${esc(ex.name)}" data-target="${ex.sets}">+</button>
                 </div>
               </div>
               <div class="skill-field">
-                <label class="skill-lbl">Best ${adjTarget.includes('s') && !adjTarget.includes('rep') ? 'hold' : 'result'}</label>
-                <input type="text" class="skill-hold-in input-field" placeholder="${esc(adjTarget)}" value="${esc(log.hold || '')}" data-ex="${esc(ex.name)}">
+                <label class="skill-lbl">Best ${ex.target.includes('s') && !ex.target.includes('rep') ? 'hold' : 'result'}</label>
+                <input type="text" class="skill-hold-in input-field" placeholder="${esc(ex.target)}" value="${esc(log.hold || '')}" data-ex="${esc(ex.name)}">
               </div>
               <div class="skill-prev-bar">
                 <span class="skill-prev-lbl">prev</span>
@@ -246,13 +224,14 @@ function renderStrengthBlock(block) {
   const label = block.label || 'Strength';
   return `
     <div class="session-block strength-block">
-      <div class="block-type-tag type-strength">${esc(label)}</div>
+      <div class="block-header-row">
+        <span class="block-type-tag type-strength">${esc(label)}</span>
+        ${block.note ? `<span class="block-note">${esc(block.note)}</span>` : ''}
+      </div>
       ${(block.exercises || []).map(ex => {
         const log       = blockLog[ex.name] || {};
         const existing  = log.sets || [];
-        const mods      = weekMods();
-        const adjSets   = (ex.sets || 3) + mods.extraSets;
-        const targetN   = adjSets;
+        const targetN   = ex.sets || 3;
         const rows      = [];
         for (let i = 0; i < Math.max(targetN, existing.length); i++) {
           const s = existing[i] || {};
@@ -263,7 +242,7 @@ function renderStrengthBlock(block) {
           <div class="str-exercise" data-ex="${esc(ex.name)}">
             <div class="str-ex-header">
               <span class="str-ex-name">${esc(ex.name)}</span>
-              <span class="str-ex-target">${adjSets} × ${esc(ex.reps)}${mods.blockNote ? ` <span class="type-note">(${esc(mods.blockNote)})</span>` : ''}</span>
+              <span class="str-ex-target">${targetN} × ${esc(ex.reps)}</span>
             </div>
             ${ex.note ? `<div class="str-ex-note">${esc(ex.note)}</div>` : ''}
             <div class="str-tiles">
@@ -410,16 +389,16 @@ function renderCheckItem(key, label, icon, checked) {
 }
 
 // ── Panel helpers ──────────────────────────────────────────────────────────
-function renderSessionPanel(session, isRest, progress, mobility, week) {
-  const weekName = WEEK_LABELS[week] || '';
-  const weekHint = WEEK_HINTS[week] || '';
+function renderSessionPanel(session, isRest, progress, mobility, week, weekLabel, weekHint) {
+  const weekName = weekLabel || WEEK_LABELS[week] || '';
+  const weekHintText = weekHint || WEEK_HINTS[week] || '';
   return `
     <div class="card session-card ${isRest ? 'rest-day' : ''}">
       <div class="card-header-row">
         <div>
           <div class="session-title">${esc(session.label || 'Rest Day')}</div>
           ${session.focus ? `<div class="session-focus">${esc(session.focus)}</div>` : ''}
-          ${weekName ? `<div class="session-week-hint"><span class="week-phase-badge">W${week} ${esc(weekName)}</span> <span class="week-hint-text">${esc(weekHint)}</span></div>` : ''}
+          ${weekName ? `<div class="session-week-hint"><span class="week-phase-badge">W${week} ${esc(weekName)}</span> <span class="week-hint-text">${esc(weekHintText)}</span></div>` : ''}
         </div>
         ${progress && progress.total > 0 ? `
           <div class="session-progress">
@@ -507,7 +486,11 @@ export async function renderToday(container) {
   activeWeek = week;
   if (pendingDay !== null) selectedDay = pendingDay;
 
-  const session  = await getProgrammeSession(prog, selectedDay);
+  // Fetched once (not via getProgrammeSession) since we need both this day's blocks
+  // AND the week's own weekLabel/weekHint from the same object — two separate reads
+  // would duplicate the same underlying getSessions() call for no benefit.
+  const weekSessions = await getWeekSessions(prog, week);
+  const session  = weekSessions[selectedDay] ?? { label: 'Rest', focus: 'Recovery', blocks: [] };
   currentBlocks  = session.blocks || [];
   const checklist = await getTodayChecklist();
   const mobility  = getMobilityForDay(selectedDay);
@@ -548,7 +531,7 @@ export async function renderToday(container) {
     </div>
 
     <div id="today-panel-session"   class="${todaySubTab !== 'session'   ? 'hidden' : ''}">
-      ${renderSessionPanel(session, isRest, progress, mobility, week)}
+      ${renderSessionPanel(session, isRest, progress, mobility, week, weekSessions.weekLabel, weekSessions.weekHint)}
     </div>
     <div id="today-panel-checklist" class="${todaySubTab !== 'checklist' ? 'hidden' : ''}">
       ${renderChecklistPanel(checklistItems, checklist)}

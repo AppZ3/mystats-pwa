@@ -37,4 +37,4 @@ setTimeout(function() {
     el.innerHTML = '';
     el.appendChild(div);
   }
-}, 5000);
+}, 15000);
